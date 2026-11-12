@@ -8,6 +8,8 @@ No books are included apart from a demo. You bring the texts (and, optionally, d
 
 ## Demo
 
+**[Open the demo in the browser](https://dartnnn.github.io/entrelineas/?book=don-quijote.bbook.zip)**: no installation, nothing is uploaded.
+
 [`demo/don-quijote.bbook.zip`](demo/don-quijote.bbook.zip) is one chapter of *Don Quijote* (part I, chapter VIII, the windmills) with the Russian translation by V. A. Karelin (1866), both in the public domain. Open it in either reader to see what a built book looks like. It was built without dictionaries, so the glosses are the model's own; it cost about $0.47 (November 2026).
 
 `demo/quijote.py` makes the source files for any chapter of part I: it downloads the Spanish text from [Project Gutenberg](https://www.gutenberg.org/ebooks/2000) and Karelin's translation from [Wikisource](https://ru.wikisource.org/wiki/Дон-Кихот_Ламанчский_(Сервантес;_Карелин)/1873_(ДО)/Часть_I), cuts out the chapter and brings the pre-1918 Russian spelling to the modern one. Karelin translates freely and sometimes condenses, so some sentences of the original have no counterpart.
@@ -70,7 +72,7 @@ This gives the original, the published translation per sentence, footnotes and a
 
 ## Reading
 
-**Web:** `cd reader-web && npm ci && npm run dev`, then open the page and drop a `.bbook.zip` on it. `npm run build` gives a static site in `dist/`; books are opened locally and never uploaded.
+**Web:** the reader is published at https://dartnnn.github.io/entrelineas/ (the `gh-pages` branch: the built site and the demo book). Open a `.bbook.zip` from your disk, or link to a published one with `?book=<url>` (the server must allow cross-origin reads). Locally: `cd reader-web && npm ci && npm run dev`; `npm run build` gives a static site in `dist/`. Books are read in the browser and never uploaded.
 
 **Android:** `cd reader && gradle assembleDebug`, install `app/build/outputs/apk/debug/app-debug.apk`, then open a `.bbook.zip` from the file picker. The release build is signed with the debug key: set up your own signing before distributing it.
 
