@@ -1,0 +1,7 @@
+# Extra packages for builder/align.py (about 2 GB with the LaBSE model); setup-env.sh installs them into .venv.
+# torch must come from the CPU index (see setup-env.sh), otherwise pip pulls the CUDA build.
+-r requirements.txt
+torch==2.15.0
+sentence-transformers==6.2.0
+transformers==5.22.1
+razdel==0.5.0

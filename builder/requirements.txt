@@ -1,0 +1,10 @@
+# Pinned: sentence ids depend on spaCy's segmentation, so a spaCy or model upgrade invalidates every built
+# chapter and alignment (sentence_references rejects them) and means a paid rebuild.
+spacy==3.8.18
+es_core_news_md @ https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl
+requests==2.34.2
+pytest==9.2.0
+# token counts for builder/prompt_audit.py (o200k_base as a stand-in for the providers' tokenizers)
+tiktoken==0.14.0
+# package format check against format/*.schema.json (builder/export_package.py)
+jsonschema==4.26.0

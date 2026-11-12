@@ -1,0 +1,28 @@
+# secrets
+*.env
+
+# copyrighted source texts and build outputs
+books/
+*.fb2
+*.fb2.zip
+
+# local environments and build outputs (contain book text)
+.venv/
+__pycache__/
+build/
+probe/out/
+
+# downloaded tools (LanguageTool)
+tools/
+
+# editable install metadata (pip install -e .)
+*.egg-info/
+
+# scratch files and third-party documents (the PCIC export is not ours to publish)
+tmp/
+
+# prompt probe reports quote the book's text
+probe/*.md
+
+# experiment outputs (quote the book): kept out of build/ so a clean build does not lose them
+experiments/data/

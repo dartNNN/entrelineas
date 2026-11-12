@@ -1,0 +1,46 @@
+{
+ "paper": {
+  "page": "#F7F3EA",
+  "text": "#2E2A24",
+  "literal": "#6B6458",
+  "gloss": "#2F6A80",
+  "note": "#76653F",
+  "bar": "#ECE5D7",
+  "accent": "#2F6A80",
+  "selection": "#2F6A8055",
+  "dark": false
+ },
+ "sepia": {
+  "page": "#F6E3CB",
+  "text": "#45372A",
+  "literal": "#735F4A",
+  "gloss": "#215E70",
+  "note": "#765A34",
+  "bar": "#EAD5BA",
+  "accent": "#215E70",
+  "selection": "#215E7055",
+  "dark": false
+ },
+ "dusk": {
+  "page": "#2E2E2E",
+  "text": "#D2CDC4",
+  "literal": "#A39D93",
+  "gloss": "#86B6C5",
+  "note": "#BBA77D",
+  "bar": "#252525",
+  "accent": "#86B6C5",
+  "selection": "#86B6C555",
+  "dark": true
+ },
+ "night": {
+  "page": "#000000",
+  "text": "#C8B78F",
+  "literal": "#8F826A",
+  "gloss": "#6E9FAE",
+  "note": "#9C8862",
+  "bar": "#101010",
+  "accent": "#6E9FAE",
+  "selection": "#6E9FAE55",
+  "dark": true
+ }
+}

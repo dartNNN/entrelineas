@@ -1,0 +1,187 @@
+{
+ "index": 1,
+ "title": "Capítulo de prueba",
+ "references": [
+  {
+   "text": "Привет, мир.",
+   "loose": false,
+   "uncertain": false,
+   "notes": [
+    "n_1"
+   ]
+  },
+  {
+   "text": null
+  }
+ ],
+ "footnotes": [
+  {
+   "id": "n_1",
+   "text": "Первая программа.",
+   "side": "reference"
+  },
+  {
+   "id": "a_1",
+   "text": "Saludo.",
+   "side": "source"
+  }
+ ],
+ "entries": {
+  "mundo|NOUN": {
+   "headword": "mundo",
+   "senses": [
+    {
+     "id": "1",
+     "text": "мир, свет",
+     "gram": "m"
+    },
+    {
+     "id": "2",
+     "text": "общество"
+    }
+   ]
+  }
+ },
+ "paragraphs": [
+  {
+   "id": "c01p000",
+   "heading": true,
+   "sentences": [
+    {
+     "id": "c01p000s1",
+     "tokens": [
+      "Capítulo",
+      "de",
+      "prueba"
+     ],
+     "ws": [
+      " ",
+      " ",
+      ""
+     ],
+     "segments": [
+      [
+       0,
+       2,
+       "Глава проверки",
+       null
+      ]
+     ],
+     "grammar": [],
+     "context": [],
+     "variants": [],
+     "expressions": [],
+     "lexical": []
+    }
+   ]
+  },
+  {
+   "id": "c01p001",
+   "sentences": [
+    {
+     "id": "c01p001s1",
+     "tokens": [
+      "Hola",
+      "mundo",
+      "."
+     ],
+     "ws": [
+      " ",
+      "",
+      ""
+     ],
+     "segments": [
+      [
+       0,
+       0,
+       "Привет",
+       null
+      ],
+      [
+       1,
+       2,
+       "мир.",
+       null
+      ]
+     ],
+     "grammar": [
+      [
+       1,
+       1,
+       "noun",
+       "Существительное мужского рода."
+      ]
+     ],
+     "context": [
+      [
+       0,
+       0,
+       "Приветствие."
+      ]
+     ],
+     "variants": [
+      [
+       1,
+       1,
+       [
+        "мир",
+        "свет"
+       ],
+       "оттенок"
+      ]
+     ],
+     "expressions": [
+      [
+       0,
+       1,
+       "hola mundo",
+       "привет, мир"
+      ]
+     ],
+     "lexical": [
+      {
+       "t": 1,
+       "lemma": "mundo",
+       "key": "mundo|NOUN#1",
+       "n": 1,
+       "gloss": "мир",
+       "gram": "м.",
+       "form": null,
+       "from": "dictionary"
+      }
+     ],
+     "ref": 0,
+     "notes": [
+      "a_1"
+     ]
+    },
+    {
+     "id": "c01p001s2",
+     "tokens": [
+      "Adiós",
+      "."
+     ],
+     "ws": [
+      "",
+      ""
+     ],
+     "segments": [],
+     "grammar": [],
+     "context": [],
+     "variants": [],
+     "expressions": [],
+     "lexical": [
+      {
+       "t": 0,
+       "lemma": "adiós",
+       "key": "adiós|INTJ#1",
+       "n": 12,
+       "gloss": "прощай"
+      }
+     ],
+     "ref": 1
+    }
+   ]
+  }
+ ]
+}

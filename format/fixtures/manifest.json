@@ -1,0 +1,21 @@
+{
+ "schema": "1.5",
+ "id": "test",
+ "title": "Test",
+ "author": "Tester",
+ "studied": "es",
+ "support": "ru",
+ "maxOccurrence": 20,
+ "chapters": [
+  {
+   "index": 1,
+   "title": "Capítulo de prueba",
+   "file": "chapters/001.json"
+  },
+  {
+   "index": 2,
+   "title": "Dos",
+   "file": "chapters/002.json"
+  }
+ ]
+}

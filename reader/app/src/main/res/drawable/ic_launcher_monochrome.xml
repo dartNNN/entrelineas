@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13): the page outlined, its lines, the gloss brackets and the bookmark in one colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.4" android:strokeLineJoin="round"
+        android:pathData="M35,28 L71,28 A4,4 0 0,1 75,32 L75,78 A4,4 0 0,1 71,82 L35,82 A4,4 0 0,1 31,78 L31,32 A4,4 0 0,1 35,28 Z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:strokeLineCap="round"
+        android:pathData="M37,40 L59,40 M37,47 L51,47 M37,61 L65,61 M37,68 L57,68 M56,47 L63,47" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M54,44.3 L52.7,44.3 L52.7,49.7 L54,49.7 M65,44.3 L66.3,44.3 L66.3,49.7 L65,49.7" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M64,24 L72,24 L72,64 L68,59 L64,64 Z" />
+</vector>

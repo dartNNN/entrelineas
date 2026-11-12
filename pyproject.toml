@@ -1,0 +1,19 @@
+# The builder's modules installed into .venv in editable mode (setup-env.sh), so tests and experiments import them
+# without changing sys.path; the scripts still run as `python builder/<script>.py`.
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "entrelineas-builder"
+version = "0.6.0"
+description = "Builds Frank-style bilingual book packages (.bbook.zip) for the Entrelíneas readers"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+package-dir = { "" = "builder" }
+py-modules = [
+  "align", "build_offline", "config", "dictionary", "export_package", "grammar_catalog", "grammar_detect",
+  "grammar_patterns", "lexical_answers", "llm", "model_prompts", "morphology", "pcic", "prompt_audit",
+  "published", "run_chapter", "run_lexicon", "segment_answers", "text", "units",
+]

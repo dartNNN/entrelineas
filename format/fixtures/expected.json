@@ -1,0 +1,671 @@
+{
+ "blocks": {
+  "defaults": [
+   {
+    "kind": "title",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "literal",
+      " (Глава проверки)"
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "plain",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "text",
+      ""
+     ]
+    ]
+   },
+   {
+    "kind": "hinted",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "literal",
+      " (Привет)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "gloss",
+      " [мир]"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "literal",
+      " (мир.)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "notes",
+    "runs": [
+     [
+      "text",
+      "◦ Существительное мужского рода.\n※ Приветствие."
+     ]
+    ]
+   },
+   {
+    "kind": "authorNotes",
+    "runs": [
+     [
+      "text",
+      "* Saludo."
+     ]
+    ]
+   },
+   {
+    "kind": "plain",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      ""
+     ]
+    ]
+   }
+  ],
+  "referenceInText": [
+   {
+    "kind": "title",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "literal",
+      " (Глава проверки)"
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "plain",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "text",
+      ""
+     ]
+    ]
+   },
+   {
+    "kind": "hinted",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "literal",
+      " (Привет)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "gloss",
+      " [мир]"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "literal",
+      " (мир.)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "notes",
+    "runs": [
+     [
+      "text",
+      "◦ Существительное мужского рода.\n※ Приветствие."
+     ]
+    ]
+   },
+   {
+    "kind": "authorNotes",
+    "runs": [
+     [
+      "text",
+      "* Saludo."
+     ]
+    ]
+   },
+   {
+    "kind": "reference",
+    "runs": [
+     [
+      "text",
+      "Привет, мир.\n* Первая программа."
+     ]
+    ]
+   },
+   {
+    "kind": "plain",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      ""
+     ]
+    ]
+   }
+  ],
+  "noHints": [
+   {
+    "kind": "title",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "hinted",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "authorNotes",
+    "runs": [
+     [
+      "text",
+      "* Saludo."
+     ]
+    ]
+   }
+  ],
+  "thresholdNoRepeat": [
+   {
+    "kind": "title",
+    "runs": [
+     [
+      "token",
+      "Capítulo"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "de"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "prueba"
+     ],
+     [
+      "literal",
+      " (Глава проверки)"
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "hinted",
+    "runs": [
+     [
+      "token",
+      "Hola"
+     ],
+     [
+      "literal",
+      " (Привет)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "mundo"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "literal",
+      " (мир.)"
+     ],
+     [
+      "text",
+      " "
+     ],
+     [
+      "token",
+      "Adiós"
+     ],
+     [
+      "gloss",
+      " [прощай]"
+     ],
+     [
+      "text",
+      ""
+     ],
+     [
+      "token",
+      "."
+     ],
+     [
+      "text",
+      " "
+     ]
+    ]
+   },
+   {
+    "kind": "notes",
+    "runs": [
+     [
+      "text",
+      "◦ Существительное мужского рода.\n※ Приветствие."
+     ]
+    ]
+   }
+  ]
+ },
+ "selections": {
+  "word": {
+   "original": "mundo",
+   "literal": "мир.",
+   "reference": "Привет, мир.",
+   "lemma": "mundo",
+   "gloss": "мир",
+   "key": "mundo|NOUN#1",
+   "notes": "Существительное мужского рода.\nмир, свет — оттенок\nhola mundo — привет, мир",
+   "sentence": "Hola mundo.",
+   "units": [
+    "word",
+    "segment",
+    "sentence",
+    "paragraph"
+   ],
+   "tokens": [
+    "c01p001s1:1"
+   ]
+  },
+  "segment": {
+   "original": "mundo.",
+   "literal": "мир.",
+   "reference": "Привет, мир.",
+   "lemma": "",
+   "gloss": "",
+   "key": "",
+   "notes": "Существительное мужского рода.\nмир, свет — оттенок\nhola mundo — привет, мир",
+   "sentence": "Hola mundo.",
+   "units": [
+    "word",
+    "segment",
+    "sentence",
+    "paragraph"
+   ],
+   "tokens": [
+    "c01p001s1:1",
+    "c01p001s1:2"
+   ]
+  },
+  "sentenceAndNext": {
+   "original": "Hola mundo. Adiós.",
+   "literal": "Привет мир.",
+   "reference": "Привет, мир.",
+   "lemma": "",
+   "gloss": "",
+   "key": "",
+   "notes": "Существительное мужского рода.\nПриветствие.\nмир, свет — оттенок\nhola mundo — привет, мир",
+   "sentence": "Hola mundo.",
+   "units": [
+    "word",
+    "segment",
+    "sentence",
+    "paragraph"
+   ],
+   "tokens": [
+    "c01p001s1:0",
+    "c01p001s1:1",
+    "c01p001s1:2",
+    "c01p001s2:0",
+    "c01p001s2:1"
+   ]
+  },
+  "paragraph": {
+   "original": "Hola mundo. Adiós.",
+   "literal": "Привет мир.",
+   "reference": "Привет, мир.",
+   "lemma": "",
+   "gloss": "",
+   "key": "",
+   "notes": "Существительное мужского рода.\nПриветствие.\nмир, свет — оттенок\nhola mundo — привет, мир",
+   "sentence": "Adiós.",
+   "units": [
+    "word",
+    "sentence",
+    "paragraph"
+   ],
+   "tokens": [
+    "c01p001s1:0",
+    "c01p001s1:1",
+    "c01p001s1:2",
+    "c01p001s2:0",
+    "c01p001s2:1"
+   ]
+  },
+  "plainWord": {
+   "original": "Adiós",
+   "literal": "",
+   "reference": "",
+   "lemma": "adiós",
+   "gloss": "прощай",
+   "key": "adiós|INTJ#1",
+   "notes": "",
+   "sentence": "Adiós.",
+   "units": [
+    "word",
+    "sentence",
+    "paragraph"
+   ],
+   "tokens": [
+    "c01p001s2:0"
+   ]
+  }
+ }
+}

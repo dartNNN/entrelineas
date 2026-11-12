@@ -1,0 +1,26 @@
+{
+ "index": 2,
+ "title": "Dos",
+ "paragraphs": [
+  {
+   "id": "c02p001",
+   "sentences": [
+    {
+     "id": "c02p001s1",
+     "tokens": [
+      "Sí"
+     ],
+     "ws": [
+      ""
+     ],
+     "segments": [],
+     "grammar": [],
+     "context": [],
+     "variants": [],
+     "expressions": [],
+     "lexical": []
+    }
+   ]
+  }
+ ]
+}
