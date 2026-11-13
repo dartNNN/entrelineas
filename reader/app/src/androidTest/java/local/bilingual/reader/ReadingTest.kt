@@ -39,7 +39,7 @@ class ReadingTest : ReaderTestBase() {
     fun s4_4_positionIsStoredWhileReading() {
         launchWithBook()
         swipeForward(2)
-        val stored = context.getSharedPreferences("reader", android.content.Context.MODE_PRIVATE).getString("paragraph", "")
+        val stored = local.bilingual.reader.data.Store(context).library().first().paragraph
         assertEquals(currentParagraph(), stored)
     }
 }

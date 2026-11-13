@@ -123,6 +123,51 @@ class BookParserTest {
     }
 
     @Test
+    fun opensAFileLazilyWithTheSameContent() {
+        val file = java.io.File.createTempFile("book", ".bbook.zip").apply { deleteOnExit() }
+        file.writeBytes(TestBook.bytes(paragraphs = 2, chapters = 3))
+        val lazy = BookParser.open(file)
+        val whole = BookParser.parse(file.inputStream())
+        assertEquals(whole.chapterTitles, lazy.chapterTitles)
+        assertEquals(3, lazy.chapters.size)
+        (0 until 3).forEach { assertEquals(whole.chapters[it], lazy.chapters[it]) }
+        assertTrue("chapter weights are the file sizes", lazy.chapterWeights.all { it > 1 })
+    }
+
+    @Test
+    fun keepsOnlyTheLastParsedChapters() {
+        var parses = 0
+        val chapters = LazyChapters(listOf("a", "b", "c"), listOf(1, 1, 1), { "$it" }, { parses++; Chapter(it.toInt(), it, emptyList()) }, keep = 2)
+        chapters[0]; chapters[1]; chapters[0]
+        assertEquals(2, parses)
+        chapters[2]          // drops chapter 1, the least recently used
+        chapters[0]
+        assertEquals(3, parses)
+        chapters[1]
+        assertEquals(4, parses)
+    }
+
+    @Test
+    fun comparingTwoCopiesOfABookReadsNoChapter() {
+        var reads = 0
+        fun copy() = Book("b", "B", "", 20, LazyChapters(listOf("a", "b"), listOf(1, 1), { reads++; "" }, { Chapter(0, "", emptyList()) }))
+        val one = copy()
+        assertTrue("another copy is another book", one != copy())
+        assertEquals(one, one)
+        assertEquals(0, reads)
+    }
+
+    @Test
+    fun bookProgressWeighsChaptersByLength() {
+        val chapters = LazyChapters(listOf("short", "long"), listOf(100, 300), { "" }, { Chapter(0, "", emptyList()) })
+        val book = Book("b", "B", "", 20, chapters)
+        assertEquals(0f, book.progress(0, 0, 0), 1e-6f)
+        assertEquals(0.125f, book.progress(0, 0, 2), 1e-6f)
+        assertEquals(0.25f, book.progress(1, 0, 0), 1e-6f)
+        assertEquals(1f, book.progress(1, 9, 10), 1e-6f)
+    }
+
+    @Test
     fun failsOnGarbageInput() {
         assertThrows(Exception::class.java) { BookParser.parse("not a zip".byteInputStream()) }
     }

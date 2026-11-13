@@ -25,11 +25,13 @@ export interface Settings {
   showAuthorNotes: boolean
   /** Body text justified to both margins. */
   justify: boolean
+  /** Left and right margin of the page, px. */
+  margin: number
 }
 
 export const DEFAULTS: Settings = {
   threshold: 10, showLiteral: true, showLexical: true, showNotes: true, repeat: 'paragraph', fontSize: 18,
-  referenceInCard: true, referenceInText: false, showFootnotes: true, showAuthorNotes: true, justify: true,
+  referenceInCard: true, referenceInText: false, showFootnotes: true, showAuthorNotes: true, justify: true, margin: 20,
 }
 
 export interface ShellSettings {
@@ -38,18 +40,26 @@ export interface ShellSettings {
   statusOnTop: boolean
   clock: boolean
   battery: boolean
+  /** Progress items of the counter under the page and of the status line: pages and percent, of the chapter and the book. */
   page: boolean
   chapterProgress: boolean
+  bookPages: boolean
   bookProgress: boolean
+  /** 2: chapter items off and book items on by default; older saved choices give way once (withProgressDefaults). */
+  progressVersion?: number
   chapterTitle: boolean
   /** Seconds the top bar stays after the last touch. */
   autoHideSeconds: number
 }
 
 export const SHELL_DEFAULTS: ShellSettings = {
-  scheme: 'system', fullscreen: false, statusOnTop: true, clock: true, battery: true, page: true,
-  chapterProgress: false, bookProgress: false, chapterTitle: false, autoHideSeconds: 3,
+  scheme: 'system', fullscreen: false, statusOnTop: true, clock: true, battery: true, page: false,
+  chapterProgress: false, bookPages: true, bookProgress: true, chapterTitle: false, autoHideSeconds: 3, progressVersion: 2,
 }
+
+/** Shell settings saved before version 2 of the progress items take its defaults for them, once. */
+export const withProgressDefaults = (s: ShellSettings): ShellSettings => ((s.progressVersion ?? 1) < 2
+  ? { ...s, page: false, chapterProgress: false, bookPages: true, bookProgress: true, progressVersion: 2 } : s)
 
 /** Whether the hinted text differs from the original at all: literal translations, glosses or notes. */
 export const hasHints = (s: Settings) => s.showLiteral || s.showLexical || s.showNotes

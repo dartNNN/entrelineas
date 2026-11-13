@@ -186,6 +186,9 @@ fun TypographySettings(s: Settings, onChange: (Settings) -> Unit) {
     Text("Размер шрифта ${s.fontSize.toInt()}", style = MaterialTheme.typography.labelLarge)
     Slider(s.fontSize, { onChange(s.copy(fontSize = it.toInt().toFloat())) }, valueRange = 14f..26f, steps = 11,
         modifier = Modifier.testTag("fontSize"))
+    Text("Поля ${s.margin} dp", style = MaterialTheme.typography.labelLarge)
+    Slider(s.margin.toFloat(), { onChange(s.copy(margin = (it / 4).toInt() * 4)) }, valueRange = 4f..48f, steps = 10,
+        modifier = Modifier.testTag("margin"))
     Toggle("Выравнивание по ширине", s.justify, note = "Строки ровные с обеих сторон, как в книге") { onChange(s.copy(justify = it)) }
 }
 
@@ -214,11 +217,16 @@ fun ViewSettings(shell: ShellSettings, systemDark: Boolean, onShell: (ShellSetti
     Column(Modifier.alpha(if (on) 1f else 0.5f)) {
         Toggle("Часы", shell.clock) { onShell(shell.copy(clock = it)) }
         Toggle("Батарея", shell.battery) { onShell(shell.copy(battery = it)) }
-        Toggle("Страница", shell.page, note = "Номер страницы в главе") { onShell(shell.copy(page = it)) }
-        Toggle("Прогресс главы", shell.chapterProgress, note = "Сколько процентов главы прочитано") { onShell(shell.copy(chapterProgress = it)) }
-        Toggle("Прогресс книги", shell.bookProgress, note = "Сколько процентов книги прочитано") { onShell(shell.copy(bookProgress = it)) }
         Toggle("Название главы", shell.chapterTitle) { onShell(shell.copy(chapterTitle = it)) }
     }
+
+    Section("Прогресс", "Под страницей и в строке состояния полноэкранного режима. Страницы книги до конца не посчитаны — перед числом «~».")
+    Text("Глава", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+    Toggle("Страницы главы", shell.page, note = "12 / 40") { onShell(shell.copy(page = it)) }
+    Toggle("Прогресс главы", shell.chapterProgress, note = "30%") { onShell(shell.copy(chapterProgress = it)) }
+    Text("Книга", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+    Toggle("Страницы книги", shell.bookPages, note = "123 / ~860") { onShell(shell.copy(bookPages = it)) }
+    Toggle("Прогресс книги", shell.bookProgress, note = "14%") { onShell(shell.copy(bookProgress = it)) }
 }
 
 /** What an action receives: ready-made choices and an own variant; names map to [fillTemplate] placeholders. */

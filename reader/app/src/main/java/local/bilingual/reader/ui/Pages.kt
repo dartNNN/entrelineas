@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import local.bilingual.reader.data.CHAPTER_END
 import local.bilingual.reader.format.*
 import local.bilingual.reader.reading.*
 
@@ -58,19 +59,43 @@ internal data class Highlight(val tokens: Set<Pair<String, Int>>, val paragraphs
 
 @OptIn(ExperimentalMaterial3Api::class)
 
-/** Pages of one layout: first screens synchronously at the anchor, the rest of the chapter in the background. */
-private class PageFlow(val anchorParagraph: String) {
-    val pages = mutableStateListOf<Page>()
-    var complete by mutableStateOf(false)
-    val pager = PagerState(currentPage = 0) { pages.size }
+/**
+ * Pages of one layout: first screens synchronously at the anchor, the rest of the chapter in the background. The pager
+ * has one more page at each end where there is a neighbouring chapter ([lead], [trail]): settling on it turns to that
+ * chapter. The end one appears once the chapter is fully laid out, so it is never reached before the last real page.
+ */
+private class PageFlow(val anchorParagraph: String, hasPrevious: Boolean, private val hasNext: Boolean, cached: List<Page>?) {
+    val pages = mutableStateListOf<Page>().apply { cached?.let { addAll(it) } }
+    var complete by mutableStateOf(cached != null)
+    val lead = if (hasPrevious) 1 else 0
+    val trail get() = if (hasNext && complete) 1 else 0
+    val pager = PagerState(currentPage = lead + (cached?.let { startIndex(it) } ?: 0)) { lead + pages.size + trail }
+
+    /** The real page shown at pager index [index], or null on a turn page. */
+    fun page(index: Int): Page? = pages.getOrNull(index - lead)
+
+    private fun startIndex(list: List<Page>): Int =
+        if (anchorParagraph == CHAPTER_END) list.lastIndex.coerceAtLeast(0)
+        else list.indexOfLast { it.firstParagraph <= anchorParagraph && !it.repeat }.coerceAtLeast(0)
+}
+
+/**
+ * The last complete layout, kept for the life of the process: when the system destroys the activity in the background
+ * and it comes back with the same chapter, settings and screen, its pages are reused instead of laid out again.
+ */
+private object LayoutCache {
+    var key: Any? = null
+    var pages: List<Page> = emptyList()
 }
 
 @Composable
 internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, colors: SchemeColors, known: Set<String>,
                   startParagraph: String, highlight: Highlight?, progress: (Int, Int?) -> Progress,
                   onWord: (WordTap) -> Unit, onLongPress: (TextSelection) -> Unit, onBlank: () -> Unit,
-                  onPage: (String) -> Unit, onTurn: () -> Unit, onLayout: (Long) -> Unit, onReveal: () -> Unit,
-                  modifier: Modifier = Modifier) {
+                  onPage: (paragraph: String, page: Int, pages: Int?) -> Unit, onTurn: () -> Unit, onLayout: (Long) -> Unit,
+                  onReveal: () -> Unit, modifier: Modifier = Modifier, cacheKey: Any? = null,
+                  previous: String? = null, next: String? = null, onPrevious: () -> Unit = {}, onNext: () -> Unit = {},
+                  onCount: (layout: String, pages: Int?) -> Unit = { _, _ -> }) {
     val palette = remember(colors) { Palette(colors.literal.color(), colors.gloss.color(), colors.note.color()) }
     val textColor = colors.text.color()
     val base = remember(textColor) { TextStyle(fontFamily = FontFamily.Serif, color = textColor, lineHeight = 1.4.em) }
@@ -90,10 +115,10 @@ internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, c
     @Composable
     fun status(padding: Modifier) {
         val flow = shown
-        StatusLine(shell, progress(flow?.pager?.currentPage ?: 0, flow?.takeIf { it.complete }?.pages?.size), statusColor,
+        StatusLine(shell, progress(flow?.let { realPage(it) } ?: 0, flow?.takeIf { it.complete }?.pages?.size), statusColor,
             padding.pointerInput(Unit) { detectTapGestures { onBlank() } })
     }
-    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp)) {
+    Column(modifier.fillMaxSize().padding(horizontal = settings.margin.dp, vertical = 12.dp)) {
         if (shell.fullscreen && shell.statusOnTop) status(Modifier.padding(bottom = 8.dp))
         // A vertical swipe anywhere on the page calls up the shell (horizontal swipes turn pages).
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
@@ -109,12 +134,21 @@ internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, c
             val gap = with(density) { 10.dp.roundToPx() }
             val blocks = remember(chapter, settings, known) { buildBlocks(chapter, settings, known) }
             // Font size does not change the blocks, only their measurement, so settings must be part of the key.
-            val flow = remember(blocks, settings, width, height) { PageFlow(currentParagraph) }
+            val key = listOf(cacheKey, settings, known, width, height)
+            val flow = remember(blocks, settings, width, height) {
+                PageFlow(currentParagraph, previous != null, next != null,
+                    LayoutCache.pages.takeIf { cacheKey != null && LayoutCache.key == key && it.isNotEmpty() })
+            }
             SideEffect { shown = flow }
+            // The layout as the book's page count knows it: what changes line breaks, not the familiar marks.
+            val layout = "${settings.toString().hashCode()}:${width}x$height"
             LaunchedEffect(flow) {
+                onCount(layout, null)
+                if (flow.complete) { onLayout(0); onCount(layout, flow.pages.size); return@LaunchedEffect }
                 withContext(Dispatchers.Main.immediate) {
                 val started = SystemClock.elapsedRealtime()
-                val anchor = anchorBlock(blocks, flow.anchorParagraph)
+                val atEnd = flow.anchorParagraph == CHAPTER_END
+                val anchor = if (atEnd) blocks.size else anchorBlock(blocks, flow.anchorParagraph)
                 val forward = Paginator(blocks, anchor, blocks.size, settings, base, palette, width, height, gap)
                 repeat(FIRST_SCREENS) { forward.next(measurer)?.let { flow.pages += withRepeats(listOf(it), settings, sentences) } }
                 onLayout(SystemClock.elapsedRealtime() - started)
@@ -132,26 +166,50 @@ internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, c
                             settings, sentences)
                     }
                     withContext(Dispatchers.Main.immediate) {
-                        val page = flow.pager.currentPage
+                        val page = flow.pager.currentPage - flow.lead
                         flow.pages.addAll(0, before)
-                        flow.pager.scrollToPage(page + before.size)
+                        flow.pager.scrollToPage(flow.lead + if (atEnd) flow.pages.lastIndex.coerceAtLeast(0) else page + before.size)
                     }
                 }
                 // UI state is only ever touched on the main thread; layout work above runs on Dispatchers.Default.
-                withContext(Dispatchers.Main.immediate) { flow.complete = true }
+                withContext(Dispatchers.Main.immediate) {
+                    flow.complete = true
+                    if (cacheKey != null) { LayoutCache.key = key; LayoutCache.pages = flow.pages.toList() }
+                    onCount(layout, flow.pages.size)
+                }
                 }
             }
             LaunchedEffect(flow) {
                 var first = true
-                snapshotFlow { flow.pager.currentPage }.collect { index ->
-                    flow.pages.getOrNull(index)?.let { currentParagraph = it.firstParagraph; onPage(it.firstParagraph) }
+                snapshotFlow { flow.pager.currentPage to flow.complete }.collect { (index, complete) ->
+                    flow.page(index)?.let {
+                        currentParagraph = it.firstParagraph
+                        onPage(it.firstParagraph, index - flow.lead, if (complete) flow.pages.size else null)
+                    }
                     if (!first) onTurn()
                     first = false
                 }
             }
+            // Settling on a turn page opens the neighbouring chapter; before the layout is complete the start one only
+            // leads to pages not laid out yet, so the pager goes back to the first real page instead.
+            LaunchedEffect(flow) {
+                snapshotFlow { flow.pager.settledPage to flow.complete }.collect { (index, complete) ->
+                    when {
+                        flow.pages.isEmpty() -> Unit
+                        index < flow.lead -> if (complete) onPrevious() else flow.pager.scrollToPage(flow.lead)
+                        index >= flow.lead + flow.pages.size -> onNext()
+                    }
+                }
+            }
             HorizontalPager(flow.pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { index ->
-                val page = flow.pages[index]
-                Column(Modifier.fillMaxSize().testTag("page$index").semantics { stateDescription = page.firstParagraph },
+                val page = flow.page(index)
+                if (page == null) {
+                    TurnPage(if (index < flow.lead) "← $previous" else "$next →", palette)
+                    return@HorizontalPager
+                }
+                // Tags count real pages only (a turn page before them does not shift the numbers).
+                val real = index - flow.lead
+                Column(Modifier.fillMaxSize().testTag("page$real").semantics { stateDescription = page.firstParagraph },
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     page.pieces.forEachIndexed { n, piece ->
                         PieceText(piece, settings, base, palette, sentences, highlight,
@@ -160,7 +218,7 @@ internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, c
                             onLongPressBlock = { layer -> firstSentence[piece.paragraphId]?.let { sid ->
                                 onLongPress(TextSelection(sid, 0, SelectionUnit.PARAGRAPH, layer = layer)) } },
                             onBlank = onBlank,
-                            modifier = Modifier.testTag("page$index-piece$n"))
+                            modifier = Modifier.testTag("page$real-piece$n"))
                     }
                     // The rest of the page: a tap here shows or hides the shell.
                     Spacer(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) { detectTapGestures { onBlank() } })
@@ -173,11 +231,26 @@ internal fun Pages(chapter: Chapter, settings: Settings, shell: ShellSettings, c
             // Always composed, so its height is known before the first layout and the page area never changes under it.
             val flow = shown
             val total = if (flow != null && flow.complete) flow.pages.size.toString() else "…"
-            Text("${(flow?.pager?.currentPage ?: 0) + 1} / $total", style = MaterialTheme.typography.bodySmall, color = statusColor,
+            val current = flow?.let { realPage(it) } ?: 0
+            // The items chosen in the settings; the chapter's "page / pages" is always in the semantics, for tests.
+            val items = progress(current, flow?.takeIf { it.complete }?.pages?.size).items(shell).joinToString("   ·   ")
+            Text(items.ifEmpty { " " }, style = MaterialTheme.typography.bodySmall, color = statusColor,
                 // The counter line is also a dependable place to call up the shell on a page full of words.
                 modifier = Modifier.fillMaxWidth().pointerInput(Unit) { detectTapGestures { onBlank() } }.padding(top = 8.dp)
-                    .testTag("pageCounter"))
+                    .testTag("pageCounter").semantics { stateDescription = "${current + 1} / $total" })
         }
+    }
+}
+
+/** The real page under the pager's current index (a turn page counts as the nearest real one). */
+private fun realPage(flow: PageFlow): Int = (flow.pager.currentPage - flow.lead).coerceIn(0, (flow.pages.size - 1).coerceAtLeast(0))
+
+/** The page between two chapters: the title of the one it turns to, shown while the pager settles on it. */
+@Composable
+private fun TurnPage(title: String, palette: Palette) {
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = palette.hint,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp).testTag("turnPage"))
     }
 }
 
@@ -256,7 +329,8 @@ private fun PieceText(piece: Block, settings: Settings, base: TextStyle, palette
             detectTapGestures(
                 onTap = { pos ->
                     val t = tokenAt(pos)
-                    val sentence = t?.let { sentences[it.first] }
+                    // Punctuation is not a word: a tap on it is a tap off any word.
+                    val sentence = t?.let { sentences[it.first] }?.takeIf { s -> isWord(s.tokens.getOrNull(t.second)) }
                     if (sentence != null) onWord(WordTap(sentence, t.second)) else onBlank()
                 },
                 onLongPress = { pos ->

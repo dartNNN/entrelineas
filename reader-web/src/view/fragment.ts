@@ -7,7 +7,14 @@ import type { Highlight } from '../core/selection'
  * being read, and as plain DOM for measuring the next screens (drawFragment), so both break lines the same way.
  */
 export const TAGS: Record<BlockKind, string> = { title: 'h2', hinted: 'p', plain: 'p', notes: 'div', authorNotes: 'div', reference: 'div' }
-export const LANG: Record<BlockKind, string> = { title: 'es', hinted: 'es', plain: 'es', notes: 'ru', authorNotes: 'es', reference: 'ru' }
+/** The book's two languages, for lang attributes (hyphenation, fonts, screen readers); set when a book opens. */
+export const languages = { studied: 'es', support: 'ru' }
+export function setLanguages(studied: string, support: string) {
+  languages.studied = studied
+  languages.support = support
+}
+const SUPPORT_KINDS: BlockKind[] = ['notes', 'reference']
+export const langOf = (kind: BlockKind) => (SUPPORT_KINDS.includes(kind) ? languages.support : languages.studied)
 
 export interface Piece { run: Run; painted: boolean }
 
@@ -34,12 +41,12 @@ export const key = (r: Run) => (r.kind === 'token' || r.kind === 'gloss' ? `${r.
 export function drawFragment(b: Block, f: Fragment): HTMLElement {
   const el = document.createElement(TAGS[b.kind])
   el.className = className(b, f)
-  el.lang = LANG[b.kind]
+  el.lang = langOf(b.kind)
   for (const { run: r } of pieces(b, f, [])) {
     if (r.kind === 'text') { el.append(r.text); continue }
     const span = document.createElement('span')
     span.className = r.kind === 'token' ? 'w' : r.kind
-    if (r.kind !== 'token') span.lang = 'ru'
+    if (r.kind !== 'token') span.lang = languages.support
     span.textContent = r.text
     el.append(span)
   }

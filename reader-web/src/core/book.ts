@@ -21,8 +21,8 @@ export interface Sentence {
 }
 export interface Paragraph { id: string; heading: boolean; sentences: Sentence[] }
 export interface Chapter { index: number; title: string; paragraphs: Paragraph[]; entries: Record<string, Entry> }
-/** A chapter as listed in the manifest; its text is read when it is opened. */
-export interface ChapterInfo { index: number; title: string }
+/** A chapter as listed in the manifest; its text is read when it is opened. weight: its file size, for the book progress. */
+export interface ChapterInfo { index: number; title: string; weight: number }
 /**
  * studied, support: language codes of the original and of the translations and notes. chapter(i) reads, checks and
  * parses chapter i on first use and keeps it, so opening a book costs its manifest and the chapter being read.
@@ -33,6 +33,9 @@ export interface Book {
   chapter(i: number): Promise<Chapter>
 }
 export type { Entry, Lexical }
+
+/** Parsed chapters kept per book: the one being read and its neighbours. */
+export const KEEP_CHAPTERS = 3
 
 const range = (v: unknown): number => (typeof v === 'number' ? v : 0)
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -90,16 +93,22 @@ export async function loadBook(data: ArrayBuffer | Uint8Array): Promise<Book> {
   }
   const manifest = checkManifest(await read('manifest.json'))
   for (const c of manifest.chapters) if (!zip.file(c.file)) throw new Error(`В пакете нет ${c.file}`)
+  // Only the last few chapters stay parsed (a Map keeps insertion order: the first key is the least recently used).
   const loaded = new Map<number, Promise<Chapter>>()
+  const size = (name: string) => (zip.file(name) as unknown as { _data?: { uncompressedSize?: number } } | null)?._data?.uncompressedSize
   return {
     id: manifest.id, title: manifest.title, author: manifest.author, maxOccurrence: manifest.maxOccurrence,
     studied: manifest.studied, support: manifest.support,
-    chapters: manifest.chapters.map((c) => ({ index: c.index, title: c.title })),
+    // JSZip keeps the uncompressed size of each entry only internally; without it every chapter weighs the same.
+    chapters: manifest.chapters.map((c) => ({ index: c.index, title: c.title, weight: Math.max(1, size(c.file) ?? 1) })),
     chapter(i) {
       const info = manifest.chapters[i]
       if (!info) return Promise.reject(new Error(`В книге нет главы ${i + 1}`))
-      if (!loaded.has(i)) loaded.set(i, read(info.file).then((doc) => parseChapter(checkChapter(doc, info.file))))
-      return loaded.get(i)!
+      const got = loaded.get(i) ?? read(info.file).then((doc) => parseChapter(checkChapter(doc, info.file)))
+      loaded.delete(i)
+      loaded.set(i, got)
+      while (loaded.size > KEEP_CHAPTERS) loaded.delete(loaded.keys().next().value!)
+      return got
     },
   }
 }

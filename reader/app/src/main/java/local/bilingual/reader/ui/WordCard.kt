@@ -40,9 +40,12 @@ internal fun WordCard(tap: WordTap, known: Set<String>, settings: Settings, entr
             if (lex == null || entry == null) return
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Text("Словарь: ${entry.headword}", style = MaterialTheme.typography.labelLarge)
-            entry.senses.forEach { s ->
+            val headings = senseHeadings(entry.senses) { it.gram }
+            entry.senses.forEachIndexed { i, s ->
                 val chosen = s.id == lex.sense
-                Text("${s.id}. ${s.text}" + (s.gram?.let { " ($it)" } ?: ""), style = MaterialTheme.typography.bodyMedium,
+                headings[i]?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp).testTag("senseHeading")) }
+                Text("${s.id}. ${s.text}", style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (chosen) FontWeight.SemiBold else null, modifier = Modifier.padding(top = 2.dp).testTag(if (chosen) "chosenSense" else "sense"))
             }
         }

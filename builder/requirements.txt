@@ -2,6 +2,7 @@
 # chapter and alignment (sentence_references rejects them) and means a paid rebuild.
 spacy==3.8.18
 es_core_news_md @ https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl
+en_core_web_md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl
 requests==2.34.2
 pytest==9.2.0
 # token counts for builder/prompt_audit.py (o200k_base as a stand-in for the providers' tokenizers)

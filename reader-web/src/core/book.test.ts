@@ -22,6 +22,13 @@ describe('loadBook', () => {
     expect(book.chapters.map((c) => c.title)).toEqual(['Capítulo de prueba', 'Dos'])
   })
 
+  it('weighs chapters by their file size and parses a chapter again only after it was dropped', async () => {
+    const book = await loadBook(await testBook())
+    expect(book.chapters.every((c) => c.weight > 1)).toBe(true)
+    const first = await book.chapter(0)
+    expect(await book.chapter(0)).toBe(first)
+  })
+
   it('names what breaks the format when the chapter is opened', async () => {
     const book = await loadBook(await testBook({ brokenChapter: true }))
     await expect(book.chapter(0)).rejects.toThrow(/chapters\/001\.json.*ws/)

@@ -15,7 +15,8 @@ export function sentenceIds(): string[] {
   return Array.from({ length: PARAGRAPHS }, (_, p) => [1, 2, 3].map((s) => `c01p${String(p + 1).padStart(3, '0')}s${s}`)).flat()
 }
 
-export async function longBook(): Promise<Buffer> {
+/** The e2e book: one long chapter, or with [second] a short second chapter; [id] names another book. */
+export async function longBook(second = false, id = 'e2e'): Promise<Buffer> {
   let seed = 7
   const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
   const paragraphs = Array.from({ length: PARAGRAPHS }, (_, p) => ({
@@ -35,9 +36,13 @@ export async function longBook(): Promise<Buffer> {
     }),
   }))
   const chapter = { index: 1, title: 'Capítulo largo', paragraphs }
+  const short = { index: 2, title: 'Capítulo corto', paragraphs: paragraphs.slice(0, 6).map((p) => ({
+    ...p, id: p.id.replace('c01', 'c02'), sentences: p.sentences.map((s) => ({ ...s, id: s.id.replace('c01', 'c02') })) })) }
   const zip = new JSZip()
-  zip.file('manifest.json', JSON.stringify({ schema: '1.5', id: 'e2e', title: 'E2E', author: 'Test', studied: 'es', support: 'ru',
-    maxOccurrence: 20, chapters: [{ index: 1, title: chapter.title, file: 'chapters/001.json' }] }))
+  zip.file('manifest.json', JSON.stringify({ schema: '1.5', id, title: id === 'e2e' ? 'E2E' : id, author: 'Test', studied: 'es', support: 'ru',
+    maxOccurrence: 20, chapters: [{ index: 1, title: chapter.title, file: 'chapters/001.json' },
+      ...(second ? [{ index: 2, title: short.title, file: 'chapters/002.json' }] : [])] }))
   zip.file('chapters/001.json', JSON.stringify(chapter))
+  if (second) zip.file('chapters/002.json', JSON.stringify(short))
   return zip.generateAsync({ type: 'nodebuffer' })
 }

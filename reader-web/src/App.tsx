@@ -10,23 +10,31 @@ import { FullSettings, QuickSettings } from './view/components/Settings'
 import { StatusLine } from './view/components/StatusLine'
 import { Toast } from './view/components/Toast'
 import { WordCard } from './view/components/WordCard'
-import { useBook, useChapter, useFullscreen, useShell } from './view/hooks'
+import { useChapter, useFullscreen, useLibrary, usePageCounts, useShell } from './view/hooks'
+import { CHAPTER_END } from './view/components/usePagination'
+import { BookPages } from './core/bookPages'
+import { progressItems, type Progress } from './view/progress'
+import { setLanguages } from './view/fragment'
 import { SelectionResolver, type TextSelection, type WordTap } from './core/selection'
-import { DEFAULTS, resolveScheme, SHELL_DEFAULTS, type Settings, type ShellSettings } from './core/settings'
+import { DEFAULTS, resolveScheme, SHELL_DEFAULTS, withProgressDefaults, type Settings, type ShellSettings } from './core/settings'
 import { browserHost } from './view/host'
 import { useStored } from './view/storage'
 import { useSystemDark } from './view/system'
 
-type Position = { book: string; chapter: number; paragraph: string }
-
 /** The app: the book and its chapter, the reader, and what is shown over it (shell, panels, card, selection). */
 export default function App() {
-  const { book, loading, error, open } = useBook()
+  const { book, library, loading, error, open, openFromLibrary, remove, savePosition } = useLibrary()
+  if (book) setLanguages(book.studied, book.support)  // before anything of the book is drawn or measured
   const [settings, setSettings] = useStored<Settings>('settings', DEFAULTS)
-  const [shell, setShell] = useStored<ShellSettings>('shell', SHELL_DEFAULTS)
+  const [storedShell, setShell] = useStored<ShellSettings>('shell', SHELL_DEFAULTS)
+  const shell = useMemo(() => withProgressDefaults(storedShell), [storedShell])
   const [savedActions, setSavedActions] = useStored<{ version: number; list: ActionConfig[] }>('actions', { version: ACTIONS_VERSION, list: [] })
   const [knownList, setKnownList] = useStored<string[]>('known', [])
-  const [position, setPosition] = useStored<Position>('position', { book: '', chapter: 0, paragraph: '' })
+  // Where the book being read opens: its library entry, or a chapter just chosen (at its start or end).
+  const entry = book ? library.find((b) => b.id === book.id) : undefined
+  const [jump, setJump] = useState<{ book: string; chapter: number; paragraph: string } | null>(null)
+  const position = jump && jump.book === book?.id ? jump : { book: book?.id ?? '', chapter: entry?.chapter ?? 0, paragraph: entry?.paragraph ?? '' }
+  const { counts, counted } = usePageCounts(book?.id)
   const [menu, setMenu] = useState(false)
   const [quick, setQuick] = useState(false)
   const [full, setFull] = useState(false)
@@ -35,7 +43,8 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null)
   const clearToast = useCallback(() => setToast(null), [])
   const [layoutMs, setLayoutMs] = useState(0)
-  const [screen, setScreen] = useState({ index: 0, total: 0 })
+  // The screen shown, tagged with its book and chapter: right after a turn to another chapter the old one's is not used.
+  const [shown, setScreen] = useState({ at: '', index: 0, total: 0 })
   const known = useMemo(() => new Set(knownList), [knownList])
   const systemDark = useSystemDark()
   const scheme = resolveScheme(shell.scheme, systemDark)
@@ -49,6 +58,8 @@ export default function App() {
   }, [scheme])
 
   const chapterIndex = book && position.book === book.id ? Math.min(position.chapter, book.chapters.length - 1) : 0
+  const at = `${book?.id}:${chapterIndex}`
+  const screen = shown.at === at ? shown : { at, index: 0, total: 0 }
   const { chapter, error: chapterError } = useChapter(book, chapterIndex)
   const busy = menu || quick || full || tap != null || selection != null
   const bar = useShell(shell.autoHideSeconds, busy, !!book)
@@ -58,9 +69,14 @@ export default function App() {
     const opened = await open(file)
     if (!opened) return
     setSelection(null)
-    setPosition((p) => (p.book === opened.id ? p : { book: opened.id, chapter: 0, paragraph: '' }))
+    setJump(null)
     setMenu(false)
-  }, [open, setPosition])
+  }, [open])
+  const goTo = useCallback((chapter: number, atEnd = false) => {
+    if (!book || chapter < 0 || chapter >= book.chapters.length) return
+    setJump({ book: book.id, chapter, paragraph: atEnd ? CHAPTER_END : '' })
+    setSelection(null)
+  }, [book])
 
   const host: ActionHost = useMemo(() => browserHost(known,
     (key) => setKnownList((list) => (list.includes(key) ? list.filter((k) => k !== key) : [...list, key])), setToast), [known, setKnownList])
@@ -81,10 +97,25 @@ export default function App() {
   const highlight = useMemo(() => (selection && resolver ? resolver.highlight(selection) : null), [selection, resolver])
   const startParagraph = book && position.book === book.id ? position.paragraph : ''
 
+  const pagesOfBook = useMemo(() => {
+    if (!book) return null
+    const exact = new Map(counts)
+    if (screen.total) exact.set(chapterIndex, screen.total)
+    const p = new BookPages(book.chapters.map((c) => c.weight), exact)
+    return p.available ? p : null
+  }, [book, counts, chapterIndex, screen.total])
+  const share = useCallback((index: number, total: number) => {
+    if (!book) return 0
+    const w = book.chapters.map((c) => c.weight), all = w.reduce((a, b) => a + b, 0)
+    const before = w.slice(0, chapterIndex).reduce((a, b) => a + b, 0)
+    return (before + (total ? w[chapterIndex] * (index + 1) / total : 0)) / Math.max(1, all)
+  }, [book, chapterIndex])
   const onScreen = useCallback((paragraph: string, index: number, total: number) => {
-    setScreen({ index, total })
-    if (book) setPosition({ book: book.id, chapter: chapterIndex, paragraph })
-  }, [book, chapterIndex, setPosition])
+    setScreen({ at, index, total })
+    savePosition(chapterIndex, paragraph, share(index, total))
+  }, [at, chapterIndex, savePosition, share])
+  const onCount = useCallback((layout: string, screens: number) => counted(layout, chapterIndex, screens), [counted, chapterIndex])
+  const onEdge = useCallback((direction: number) => goTo(chapterIndex + direction, direction < 0), [goTo, chapterIndex])
   const { toggle, reveal, hide } = bar
   const onBlank = useCallback(() => { if (selection) setSelection(null); else toggle() }, [selection, toggle])
   const onWord = useCallback((t: WordTap) => { setTap(t); hide() }, [hide])
@@ -92,7 +123,8 @@ export default function App() {
 
   if (loading) return <main className="open note">Загрузка…</main>
 
-  const progress = { page: screen.index, pages: screen.total, chapterIndex, chapters: book?.chapters.length ?? 1, chapterTitle: book?.chapters[chapterIndex]?.title ?? '' }
+  const progress: Progress = { page: screen.index, pages: screen.total, chapterIndex, chapters: book?.chapters.length ?? 1, chapterTitle: book?.chapters[chapterIndex]?.title ?? '',
+    ...(pagesOfBook && screen.total ? { bookPage: pagesOfBook.pageInBook(chapterIndex, screen.index), bookPages: pagesOfBook.total, estimated: pagesOfBook.estimated } : {}) }
   const status = <StatusLine s={shell} progress={progress} onTap={onBlank} />
 
   return (
@@ -102,10 +134,12 @@ export default function App() {
           {shell.fullscreen && shell.statusOnTop && status}
           <Reader key={`${book.id}:${chapterIndex}`} blocks={blocks} sentences={sentences} settings={settings} highlight={highlight}
             startParagraph={startParagraph} keys={!busy} onWord={onWord} onLongPress={onLongPress} onBlank={onBlank} onReveal={reveal}
-            onScreen={onScreen} onTurn={hide} onLayout={setLayoutMs} />
+            onScreen={onScreen} onTurn={hide} onLayout={setLayoutMs} onEdge={onEdge} onCount={onCount} />
           {shell.fullscreen
             ? !shell.statusOnTop && status
-            : <div className="page-counter" data-testid="page-counter" onClick={onBlank}>{screen.total ? `${screen.index + 1} / ${screen.total}` : '…'}</div>}
+            // The items chosen in the settings; data-chapter always holds the chapter's "page / pages", for tests.
+            : <div className="page-counter" data-testid="page-counter" data-chapter={`${screen.index + 1} / ${screen.total || '…'}`} onClick={onBlank}>
+              {progressItems(progress, shell).join('   ·   ') || '\u00a0'}</div>}
           {selection && (
             <SelectionPanel sel={selection} content={resolver.content(selection)} units={resolver.units(selection)} configs={actions} host={host}
               onChange={setSelection} onClose={() => setSelection(null)} />
@@ -122,8 +156,9 @@ export default function App() {
         {book && <button className="icon" onClick={() => setQuick(true)} aria-label="Настройки"><Icon name="settings" /></button>}
       </header>
       {menu && (
-        <ChapterMenu book={book} current={chapterIndex} onClose={() => setMenu(false)} onOpen={openFile}
-          onChapter={(i) => { if (book) setPosition({ book: book.id, chapter: i, paragraph: '' }); setSelection(null); setMenu(false) }} />
+        <ChapterMenu book={book} current={chapterIndex} library={library} onClose={() => setMenu(false)} onOpen={openFile}
+          onBook={(id) => { setJump(null); setSelection(null); setMenu(false); void openFromLibrary(id) }} onRemove={remove}
+          onChapter={(i) => { goTo(i); setMenu(false) }} />
       )}
       {quick && (
         <QuickSettings settings={settings} shell={shell} systemDark={systemDark} book={book} chapter={chapter} layoutMs={layoutMs}

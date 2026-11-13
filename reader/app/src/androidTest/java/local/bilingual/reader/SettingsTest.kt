@@ -46,6 +46,17 @@ class SettingsTest : ReaderTestBase() {
     }
 
     @Test
+    fun s7_2b_widerMarginsGiveMorePages() {
+        launchWithBook()
+        val before = pageCount()
+        openSettings()
+        setSlider("quickMargin", 48f)
+        assertEquals(48, context.getSharedPreferences("reader", android.content.Context.MODE_PRIVATE).getInt("margin", 0))
+        closeSheet()
+        assertTrue("wider margins, more pages: $before -> ${pageCount()}", pageCount() > before)
+    }
+
+    @Test
     fun s7_3_togglesRemoveTheirParts() {
         launchWithBook()
         openSettings()

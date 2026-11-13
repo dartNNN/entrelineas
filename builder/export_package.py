@@ -10,7 +10,7 @@ import zipfile
 
 import jsonschema
 
-from config import BOOK
+from config import BOOK, BUILD
 
 ROOT = pathlib.Path(__file__).parent.parent
 SCHEMA = "1.5"
@@ -79,9 +79,9 @@ def main():
     """export_package.py [--offline] N [N ...]: chapters from build/chNN (model build) or build/offline/chNN."""
     offline = "--offline" in sys.argv
     numbers = [int(a) for a in sys.argv[1:] if a.isdigit()] or [1]
-    source = ROOT / "build" / ("offline" if offline else "")
+    source = ROOT / BUILD / ("offline" if offline else "")
     book_id = BOOK["id"] + ("-offline" if offline else "")
-    out = ROOT / "build" / f"{book_id}.bbook.zip"
+    out = ROOT / BUILD / f"{book_id}.bbook.zip"
     chapters = []
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for n in numbers:

@@ -9,6 +9,7 @@ import types
 
 import spacy
 
+import config
 import dictionary
 import lexical_answers
 import llm
@@ -16,7 +17,7 @@ import model_prompts
 import segment_answers
 import text
 import units as semantic_units
-from config import ROOT, SOURCE
+from config import BUILD, ROOT, SOURCE, SPACY_MODEL
 
 
 LEXICAL_MODEL = "deepseek/deepseek-v4.1-flash"
@@ -31,8 +32,8 @@ PART_OCCURRENCES = 60
 CALL_CHARS = 24000
 
 
-# Sense inventories, in priority order (build/dict is local: the dictionaries are copyrighted).
-DICTIONARIES = ["UniversalEsRu", "ModernUsageEsRu", "LatinAmericanEsRu"]
+# Sense inventories, in priority order, for the book's language (config.py).
+DICTIONARIES = config.DICTIONARIES
 
 
 def log(*a):
@@ -41,12 +42,12 @@ def log(*a):
 
 def prepare():
     """Built chapters, their sentences and semantic units, and the lemma groups with the occurrences to send."""
-    L = types.SimpleNamespace(out=ROOT / "build" / "lexicon")
+    L = types.SimpleNamespace(out=ROOT / BUILD / "lexicon")
     L.out.mkdir(parents=True, exist_ok=True)
-    nlp = spacy.load("es_core_news_md")
+    nlp = spacy.load(SPACY_MODEL)
     L.chapters, L.sentences = {}, []
     for chapter in text.read_chapters(SOURCE):
-        path = ROOT / "build" / f"ch{chapter.index:02d}" / "chapter.json"
+        path = ROOT / BUILD / f"ch{chapter.index:02d}" / "chapter.json"
         if not path.exists():
             continue
         data = json.loads(path.read_text())

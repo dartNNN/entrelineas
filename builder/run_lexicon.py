@@ -17,6 +17,7 @@ import re
 import sys
 
 import chapter_build
+import config
 import lexical_answers
 import segment_answers
 import text
@@ -82,7 +83,7 @@ def main():
                     continue
                 item, lemma, pos_changed, sense, ordinal = c
                 # The tagger's morphology is wrong for a word whose part of speech the model corrected: no form note.
-                form = "" if pos_changed else text.form_note(t, lemma)
+                form = "" if pos_changed else text.form_note(t, lemma, config.BOOK["studied"])
                 lex.append({"token": t.i, "lemma": lemma or t.lemma, "key": item, "ordinal": ordinal,
                             "gloss": sense["gloss"], "gram": sense.get("gram"), "form": form})
                 lit = segment_answers.segment_literal(row.get("annotations"), t.i).lower()

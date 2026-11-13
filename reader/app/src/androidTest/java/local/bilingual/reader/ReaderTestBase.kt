@@ -57,6 +57,14 @@ abstract class ReaderTestBase {
         compose.waitForIdle()
     }
 
+    /** Restarts the app with another book added to the library (the library, positions and settings are kept). */
+    protected fun addBook(bytes: ByteArray) {
+        scenario?.close()
+        val file = File(context.cacheDir, "added.bbook.zip").apply { writeBytes(bytes) }
+        scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java).putExtra(EXTRA_ADD_BOOK, file.absolutePath))
+        waitForShellToHide()
+    }
+
     /** Restarts the app as the owner would, without passing a book. */
     protected fun relaunch() {
         scenario?.close()
@@ -66,10 +74,12 @@ abstract class ReaderTestBase {
 
     protected fun clearAppData() {
         File(context.filesDir, "book.zip").delete()
+        File(context.filesDir, "books").deleteRecursively()
         context.getSharedPreferences("reader", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    protected fun counter() = compose.onNodeWithTag("pageCounter").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("")
+    /** The chapter's "page / pages" (or "page / …" while it is laid out), whatever progress items the counter shows. */
+    protected fun counter() = compose.onNodeWithTag("pageCounter").fetchSemanticsNode().config[SemanticsProperties.StateDescription]
 
     /** Waits for the background layout, then returns (current page, total pages). */
     protected fun pages(): Pair<Int, Int> {

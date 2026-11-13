@@ -90,6 +90,29 @@ class ShellSelectionTest : ReaderTestBase() {
     }
 
     @Test
+    fun s9_6_closingTheWordCardInFullScreenDoesNotFlashTheStatusBar() {
+        launchWithBook()
+        openSettings()
+        toggle("Полноэкранный режим")
+        closeSheet()
+        waitForShellToHide()
+        piece(0, 1).tapWord("mundo")
+        compose.onNodeWithTag("wordCard").assertIsDisplayed()
+        closeSheet()
+        // Watched for a while after closing: the status bar must not show even for a moment.
+        val until = android.os.SystemClock.uptimeMillis() + 1500
+        while (android.os.SystemClock.uptimeMillis() < until) {
+            var visible = false
+            scenario!!.onActivity { a ->
+                visible = androidx.core.view.ViewCompat.getRootWindowInsets(a.window.decorView)
+                    ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars()) == true
+            }
+            assertTrue("the status bar showed after the card closed", !visible)
+            Thread.sleep(50)
+        }
+    }
+
+    @Test
     fun s9_4_schemeAndScreenSettingsSurviveRelaunch() {
         launchWithBook()
         openSettings()

@@ -115,7 +115,9 @@ internal fun ReaderApp(activity: ComponentActivity, model: ReaderViewModel) {
         }
     }
     val view = LocalView.current
-    val showSystemBars = !shell.fullscreen || chrome || busy
+    // In full screen the system bars come with the shell, the drawer and the settings screen; a bottom sheet (word card,
+    // quick settings, apps) keeps them hidden, so closing it does not flash the status bar.
+    val showSystemBars = !shell.fullscreen || chrome || drawer.isOpen || fullSettings
     SideEffect {
         val controller = WindowCompat.getInsetsController(activity.window, view)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -129,9 +131,11 @@ internal fun ReaderApp(activity: ComponentActivity, model: ReaderViewModel) {
     MaterialTheme(colorScheme = materialColors(colors)) {
         ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = drawer.isOpen, drawerContent = {
             ModalDrawerSheet {
-                DrawerContent(book, model.chapterIndex,
+                DrawerContent(book, model.chapterIndex, model.library,
                     onChapter = { model.selectChapter(it); scope.launch { drawer.close() } },
-                    onOpen = { scope.launch { drawer.close() }; open.launch(arrayOf("*/*")) })
+                    onOpen = { scope.launch { drawer.close() }; open.launch(arrayOf("*/*")) },
+                    onBook = { model.openFromLibrary(it); scope.launch { drawer.close() } },
+                    onRemoveBook = model::removeFromLibrary)
             }
         }) {
             Box(Modifier.fillMaxSize().background(colors.page.color())) {
@@ -143,12 +147,26 @@ internal fun ReaderApp(activity: ComponentActivity, model: ReaderViewModel) {
                     val highlight = model.selection?.let { sel ->
                         Highlight(resolver.tokens(sel), resolver.paragraphs(sel), sel.layer, colors.selection.color())
                     }
-                    Pages(chapter, settings, shell, colors, model.known, model.startParagraph(), highlight,
-                        progress = { page, pages -> Progress(page, pages, model.chapterIndex, book.chapters.size, chapter.title) },
+                    val index = model.chapterIndex
+                    val titles = book.chapterTitles
+                    Pages(chapter, settings, shell, colors, model.known, model.startParagraph, highlight,
+                        progress = { page, pages ->
+                            val counts = BookPages(book.chapterWeights, model.pageCounts + (pages?.let { mapOf(index to it) } ?: emptyMap()))
+                            if (pages != null && counts.available) {
+                                val at = counts.pageInBook(index, page)
+                                Progress(page, pages, index, book.chapters.size, chapter.title, at.toFloat() / counts.total, at, counts.total, counts.estimated)
+                            } else Progress(page, pages, index, book.chapters.size, chapter.title, pages?.let { book.progress(index, page, it) })
+                        },
+                        onCount = { layout, pages -> model.counted(layout, index, pages) },
+                        // The book instance, not only its id: a package opened again under the same id must be laid out anew.
+                        cacheKey = Triple(System.identityHashCode(book), book.id, index),
+                        previous = titles.getOrNull(index - 1), next = titles.getOrNull(index + 1),
+                        onPrevious = { model.selectChapter(index - 1, atEnd = true) },
+                        onNext = { model.selectChapter(index + 1) },
                         onWord = { model.wordTap = it; chrome = false },
                         onLongPress = { model.selection = it; chrome = false },
                         onBlank = { if (model.selection != null) model.selection = null else { chrome = !chrome; touched++ } },
-                        onPage = { model.savePosition(it) },
+                        onPage = { paragraph, page, pages -> model.savePosition(paragraph, book.progress(index, page, pages ?: 0)) },
                         onTurn = { chrome = false },
                         onLayout = { model.layoutMs = it },
                         onReveal = { chrome = true; touched++ },
@@ -190,13 +208,13 @@ internal fun ReaderApp(activity: ComponentActivity, model: ReaderViewModel) {
 
         model.wordTap?.let { tap ->
             ModalBottomSheet(onDismissRequest = { model.wordTap = null }) {
-                SheetWindow(colors.dark)
+                SheetWindow(colors.dark, hideBars = shell.fullscreen)
                 WordCard(tap, model.known, settings, chapter?.entries ?: emptyMap(), onToggleKnown = model::toggleKnown)
             }
         }
         appText?.let { text ->
             ModalBottomSheet(onDismissRequest = { appText = null }) {
-                SheetWindow(colors.dark)
+                SheetWindow(colors.dark, hideBars = shell.fullscreen)
                 val targets = remember { AppTargets.order(AppTargets.list(context), model.recentApps()) }
                 AppChooser(targets) { target ->
                     appText = null
@@ -207,7 +225,7 @@ internal fun ReaderApp(activity: ComponentActivity, model: ReaderViewModel) {
         }
         if (quickSettings) {
             ModalBottomSheet(onDismissRequest = { quickSettings = false }) {
-                SheetWindow(colors.dark)
+                SheetWindow(colors.dark, hideBars = shell.fullscreen)
                 QuickSettingsPanel(settings, shell, systemDark, colors, book, chapter, model.layoutMs,
                     onChange = model::updateSettings,
                     onShell = model::updateShell,

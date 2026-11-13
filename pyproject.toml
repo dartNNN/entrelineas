@@ -13,7 +13,7 @@ requires-python = ">=3.12"
 [tool.setuptools]
 package-dir = { "" = "builder" }
 py-modules = [
-  "align", "build_offline", "config", "dictionary", "export_package", "grammar_catalog", "grammar_detect",
+  "align", "build_offline", "chapters", "config", "dictionary", "export_package", "grammar_catalog", "grammar_detect",
   "grammar_patterns", "lexical_answers", "llm", "model_prompts", "morphology", "pcic", "prompt_audit",
   "published", "run_chapter", "run_lexicon", "segment_answers", "text", "units",
 ]

@@ -5,7 +5,8 @@ import { select, SelectionResolver } from '../core/selection'
 import { DEFAULTS } from '../core/settings'
 import { testBook } from '../test/fixture'
 import { painted } from './fragment'
-import { bookPercent, chapterPercent } from './progress'
+import { bookPercent, chapterPercent, progressItems } from './progress'
+import { SHELL_DEFAULTS, withProgressDefaults } from '../core/settings'
 
 let book: Book
 let chapter: Chapter
@@ -36,5 +37,9 @@ describe('progress (S9)', () => {
   it('reports chapter and book progress', () => {
     const p = { page: 4, pages: 10, chapterIndex: 1, chapters: 4, chapterTitle: '' }
     expect([chapterPercent(p), bookPercent(p)]).toEqual([50, 37])
+    const s = { ...SHELL_DEFAULTS }
+    expect(progressItems(p, s)).toEqual(['37%'])  // no page count yet: the book's percent only
+    expect(progressItems({ ...p, bookPage: 30, bookPages: 80, estimated: true }, { ...s, page: true })).toEqual(['глава 5 / 10', '30 / ~80 (37%)'])
+    expect(withProgressDefaults({ ...s, page: true, bookProgress: false, progressVersion: undefined })).toMatchObject({ page: false, bookProgress: true })
   })
 })

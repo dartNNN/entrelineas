@@ -3,7 +3,7 @@ import type { ActionConfig, ActionHost } from '../../core/actions'
 import type { Book, Chapter } from '../../core/book'
 import type { Settings, ShellSettings } from '../../core/settings'
 import { Icon } from './Icon'
-import { ActionsSettings, FontSize, HintSettings, SchemePicker, Section, Toggle, TranslationSettings, TypographySettings, ViewSettings } from './SettingsParts'
+import { ActionsSettings, FontSize, HintSettings, Margin, SchemePicker, Section, Toggle, TranslationSettings, TypographySettings, ViewSettings } from './SettingsParts'
 import { Sheet } from './Sheet'
 
 interface Common {
@@ -30,6 +30,7 @@ export function QuickSettings({ settings, shell, systemDark, book, chapter, layo
       </div>
       <SchemePicker current={shell.scheme} systemDark={systemDark} onPick={(scheme) => onShell({ ...shell, scheme })} />
       <FontSize s={settings} onChange={onSettings} />
+      <Margin s={settings} onChange={onSettings} />
       <HintSettings s={settings} book={book} onChange={onSettings} />
       <TranslationSettings s={settings} chapter={chapter} onChange={onSettings} />
       <Section title="Экран" />

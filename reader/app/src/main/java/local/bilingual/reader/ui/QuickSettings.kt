@@ -35,6 +35,9 @@ internal fun QuickSettingsPanel(s: Settings, shell: ShellSettings, systemDark: B
         Text("Размер шрифта ${s.fontSize.toInt()}", style = MaterialTheme.typography.labelLarge)
         Slider(s.fontSize, { onChange(s.copy(fontSize = it.toInt().toFloat())) }, valueRange = 14f..26f, steps = 11,
             modifier = Modifier.testTag("fontSize"))
+        Text("Поля ${s.margin} dp", style = MaterialTheme.typography.labelLarge)
+        Slider(s.margin.toFloat(), { onChange(s.copy(margin = (it / 4).toInt() * 4)) }, valueRange = 4f..48f, steps = 10,
+            modifier = Modifier.testTag("quickMargin"))
         HintSettings(s, book, colors, onChange)
         TranslationSettings(s, chapter, colors, onChange)
         Section("Экран")

@@ -15,7 +15,7 @@ object TestBook {
      */
     fun bytes(paragraphs: Int = 60, schema: String = "1.0", chapters: Int = 1, references: Boolean = false,
               authorNotes: Boolean = false, heading: Boolean = false, dictionary: Boolean = false,
-              modelEntry: Boolean = false): ByteArray {
+              modelEntry: Boolean = false, id: String = "test", title: String = "Test"): ByteArray {
         val refs = JSONArray()
         fun ref(text: String?, loose: Boolean = false, uncertain: Boolean = false, notes: List<String> = emptyList()): Int? {
             if (!references) return null
@@ -73,7 +73,7 @@ object TestBook {
         }
         val list = JSONArray()
         docs.forEach { list.put(JSONObject().put("index", it.getInt("index")).put("title", it.getString("title")).put("file", "chapters/%03d.json".format(it.getInt("index")))) }
-        val manifest = JSONObject().put("schema", schema).put("id", "test").put("title", "Test").put("author", "Tester")
+        val manifest = JSONObject().put("schema", schema).put("id", id).put("title", title).put("author", "Tester")
             .put("studied", "es").put("support", "ru").put("maxOccurrence", 20).put("chapters", list)
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { z ->

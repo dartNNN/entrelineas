@@ -122,11 +122,16 @@ export function FontSize({ s, onChange }: { s: Settings; onChange: (s: Settings)
   return <Slider label={`Размер шрифта ${s.fontSize}`} value={s.fontSize} min={14} max={26} testId="font-size" onChange={(v) => onChange({ ...s, fontSize: v })} />
 }
 
+export function Margin({ s, onChange }: { s: Settings; onChange: (s: Settings) => void }) {
+  return <Slider label={`Поля ${s.margin}`} value={s.margin} min={4} max={48} testId="margin" onChange={(v) => onChange({ ...s, margin: v })} />
+}
+
 export function TypographySettings({ s, onChange }: { s: Settings; onChange: (s: Settings) => void }) {
   return (
     <>
       <Section title="Шрифт" />
       <FontSize s={s} onChange={onChange} />
+      <Margin s={s} onChange={onChange} />
       <Toggle label="Выравнивание по ширине" value={s.justify} note="Строки ровные с обеих сторон, как в книге" onChange={(v) => onChange({ ...s, justify: v })} />
     </>
   )
@@ -156,11 +161,15 @@ export function ViewSettings({ shell, systemDark, onShell }: { shell: ShellSetti
         ))}
         <Toggle label="Часы" value={shell.clock} onChange={(v) => set({ clock: v })} />
         <Toggle label="Батарея" value={shell.battery} note="Где браузер сообщает заряд" onChange={(v) => set({ battery: v })} />
-        <Toggle label="Страница" value={shell.page} note="Номер страницы в главе" onChange={(v) => set({ page: v })} />
-        <Toggle label="Прогресс главы" value={shell.chapterProgress} note="Сколько процентов главы прочитано" onChange={(v) => set({ chapterProgress: v })} />
-        <Toggle label="Прогресс книги" value={shell.bookProgress} note="Сколько процентов книги прочитано" onChange={(v) => set({ bookProgress: v })} />
         <Toggle label="Название главы" value={shell.chapterTitle} onChange={(v) => set({ chapterTitle: v })} />
       </div>
+      <Section title="Прогресс" note="Под страницей и в строке состояния полноэкранного режима. Страницы книги до конца не посчитаны — перед числом «~»." />
+      <p className="field-label">Глава</p>
+      <Toggle label="Страницы главы" value={shell.page} note="12 / 40" onChange={(v) => set({ page: v })} />
+      <Toggle label="Прогресс главы" value={shell.chapterProgress} note="30%" onChange={(v) => set({ chapterProgress: v })} />
+      <p className="field-label">Книга</p>
+      <Toggle label="Страницы книги" value={shell.bookPages} note="123 / ~860" onChange={(v) => set({ bookPages: v })} />
+      <Toggle label="Прогресс книги" value={shell.bookProgress} note="14%" onChange={(v) => set({ bookProgress: v })} />
     </>
   )
 }

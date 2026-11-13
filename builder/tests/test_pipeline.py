@@ -7,6 +7,7 @@ import zipfile
 import pytest
 
 import chapter_build
+import chapters
 import export_package
 import lexicon_build
 import llm
@@ -227,7 +228,8 @@ def _run(monkeypatch, tmp_path, books, fake, *args):
     es, ru = books
     monkeypatch.setattr(chapter_build, "ROOT", tmp_path)
     monkeypatch.setattr(chapter_build, "SOURCE", es)
-    monkeypatch.setattr(chapter_build, "REFERENCE", ru)
+    monkeypatch.setattr(chapters, "REFERENCE", ru)
+    monkeypatch.setattr(chapters, "ROOT", tmp_path)
     monkeypatch.setattr(llm, "complete", fake.complete)
     monkeypatch.setattr(llm, "batch", fake.batch)
     monkeypatch.setattr(sys, "argv", ["run_chapter.py", *args])

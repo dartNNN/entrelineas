@@ -64,10 +64,12 @@ class PaginationTest {
             pagesTotal += pages.size
             // Every page fits.
             for ((n, page) in pages.withIndex()) {
-                val used = page.pieces.sumOf {
+                val heights = page.pieces.map {
                     measurer.measure(annotated(it, palette), styleFor(it.kind, settings, base, palette), constraints = Constraints(maxWidth = width)).size.height
-                } + gap * (page.pieces.size - 1)
-                assertTrue("page $n overflows: $used > $height", used <= height)
+                }
+                val used = heights.sum() + gap * (page.pieces.size - 1)
+                assertTrue("chapter ${chapter.index} page $n overflows: $used > $height; pieces " +
+                    page.pieces.zip(heights).joinToString { (b, h) -> "${b.kind} $h px «${b.plain.take(40)}…${b.plain.takeLast(40)}»" }, used <= height)
                 assertTrue("page $n is empty", page.pieces.isNotEmpty())
             }
             // No text is lost or duplicated: pieces re-joined equal the blocks, ignoring whitespace at cuts.
@@ -85,6 +87,26 @@ class PaginationTest {
             val (pages, _) = check(book, settings)
             assertTrue("expected several pages for $settings", pages > 3)
         }
+    }
+
+    /** A notes block cut after its first line, which ends in a line break: the piece is one line, not two (0.7 bug). */
+    @Test
+    fun pieceCutAtALineBreakFitsItsLine() {
+        val settings = Settings()
+        val style = styleFor(BlockKind.NOTES, settings, base, palette)
+        val notes = Block(BlockKind.NOTES, listOf(Run.Text("◦ Tirar de algo — «тянуть за что-либо».\n◦ Descolgar — «снять трубку».")), "p1")
+        val filler = Block(BlockKind.PLAIN, listOf(Run.Text("Reflexionó mientras se cambiaba de ropa.")), "p1")
+        val line = measurer.measure("◦", style, constraints = Constraints(maxWidth = width)).size.height
+        val fillerHeight = measurer.measure(annotated(filler, palette), styleFor(BlockKind.PLAIN, settings, base, palette), constraints = Constraints(maxWidth = width)).size.height
+        val pageHeight = fillerHeight + gap + line + line / 2
+        val pages = paginate(listOf(filler, notes), measurer, settings, base, palette, width, pageHeight, gap)
+        for ((n, page) in pages.withIndex()) {
+            val used = page.pieces.sumOf {
+                measurer.measure(annotated(it, palette), styleFor(it.kind, settings, base, palette), constraints = Constraints(maxWidth = width)).size.height
+            } + gap * (page.pieces.size - 1)
+            assertTrue("page $n overflows: $used > $pageHeight", used <= pageHeight)
+        }
+        assertEquals("the first note line stays on the first page", 2, pages.first().pieces.size)
     }
 
     /** Lazy layout: pages after the anchor plus pages before it cover the text exactly once. */

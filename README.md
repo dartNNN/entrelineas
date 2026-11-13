@@ -2,7 +2,7 @@
 
 Bilingual reading in the manner of Ilya Frank's books: the original text with a literal translation of each sense group inserted right after it, short glosses on words, grammar and context notes, and the published literary translation one tap away. Hints fade out: each word sense is glossed only for its first N occurrences in the book, so the further you read, the cleaner the text gets.
 
-The project builds such books from an original and its translation, and reads them on Android and in the browser. It is set up for Spanish with Russian as the support language, but nothing in the format is tied to that pair.
+The project builds such books from an original and its translation, and reads them on Android and in the browser. It is set up for Spanish or English with Russian as the support language; nothing in the format is tied to these languages.
 
 No books are included apart from a demo. You bring the texts (and, optionally, dictionaries); the builder turns them into a `.bbook.zip` package that both readers open.
 
@@ -29,16 +29,21 @@ The format is defined once in `format/*.schema.json`. The builder validates what
 
 ### What you need
 
-- The original and a translation as FB2, with the same chapters in the same order. Put them in `books/` (ignored by git) and name them in `books/book.json`:
+- The original and a translation as FB2 or EPUB, with the same chapters in the same order. Put them in `books/` (ignored by git) and name them in `books/book.json`:
 
   ```json
   {"source": "original.fb2", "reference": "translation.fb2",
    "id": "don-quijote", "title": "Don Quijote de la Mancha", "author": "Miguel de Cervantes"}
   ```
 
-  `id` becomes the package name, `build/<id>.bbook.zip`. Optional keys `studied` and `support` (default `es` and `ru`) name the two languages.
+  `id` becomes the package name, `build/<id>.bbook.zip`. Optional keys:
+  - `studied` and `support`, the two languages (default `es` and `ru`; `en` is supported too);
+  - `chapters`, a regular expression a chapter heading must match, to leave out prefaces, glossaries and notes that only one of the two editions has (for example `"^[IVXLC]+$"`);
+  - `build`, this book's build directory (default `build`), so that several books can be built side by side; pick the book with `BB_BOOK=books/<name>.json`.
+
+  In an EPUB, chapters are the documents marked `epub:type="chapter"`, and an omnibus titles them by the book they belong to.
 - For the model build, an [OpenRouter](https://openrouter.ai) key in `OPENROUTER_API_KEY`.
-- Optionally, bilingual dictionaries in StarDict format with Lingvo-style XDXF markup, as `build/dict/lingvo/<name>.{ifo,idx,dict}` (the names are in `DICTIONARIES` in `builder/lexicon_build.py` and `builder/build_offline.py`). With a dictionary the model picks a sense from the entry for each occurrence; without one it writes its own glosses.
+- Optionally, bilingual dictionaries in StarDict format with Lingvo-style XDXF markup, as `build/dict/lingvo/<name>.{ifo,idx,dict}` (the names per language are in `DICTIONARIES_FOR` in `builder/config.py`, or a book's own `dictionaries` list). With a dictionary the model picks a sense from the entry for each occurrence; without one it writes its own glosses.
 
 ### Setup
 
@@ -51,11 +56,14 @@ The format is defined once in `format/*.schema.json`. The builder validates what
 
 ```sh
 source ~/.config/openrouter.env                # export OPENROUTER_API_KEY=...
+.venv/bin/python builder/chapters.py           # match the chapters of the two editions and show them side by side
 .venv/bin/python builder/align.py 1            # pair the chapter's sentences with the translation (LaBSE, CPU)
 .venv/bin/python builder/run_chapter.py 1      # segment pass, strong model, batch mode (--sync for direct calls)
 .venv/bin/python builder/run_lexicon.py        # lexical pass over every built chapter, cheap model
 .venv/bin/python builder/export_package.py 1   # build/<id>.bbook.zip with the listed chapters
 ```
+
+`chapters.py` matches the chapters of the original and the translation by content (LaBSE on the opening and closing words) and length, so a translation that merges or splits chapters, or adds a preface, still pairs up. It prints both editions side by side, marks doubtful pairs, and writes `build/chapters.json`; a pair can be fixed by hand with `"reference_chapters": {"5": [5, 6]}` in `book.json`. Without that file chapter n goes with chapter n.
 
 `run_chapter.py` writes `build/chNN/chapter.json` and a readable `preview.md`. The lexical pass sends every word of the book once, with all its occurrences in context and its dictionary entry, and numbers occurrences per sense across the book. Model answers are cached in `build/cache`, so a rerun with unchanged prompts costs nothing.
 

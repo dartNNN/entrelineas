@@ -8,10 +8,11 @@ import types
 
 import spacy
 
+import chapters
 import model_prompts
 import published
 import text
-from config import REFERENCE, ROOT, SOURCE
+from config import BUILD, ROOT, SOURCE, SPACY_MODEL
 
 
 SEGMENT_MODEL = "openai/gpt-6.1-sol"
@@ -44,12 +45,12 @@ def reference_marks(references, ref_of, segments):
 
 def prepare(number):
     """Everything the passes need before any model call, including the segment-pass prompts."""
-    c = types.SimpleNamespace(number=number, out=ROOT / "build" / f"ch{number:02d}")
+    c = types.SimpleNamespace(number=number, out=ROOT / BUILD / f"ch{number:02d}")
     c.out.mkdir(parents=True, exist_ok=True)
     c.book = text.read_chapters(SOURCE)
     c.chapter = c.book[number - 1]
-    ref_paragraphs = text.read_chapters(REFERENCE)[number - 1].paragraphs
-    c.sentences = text.analyse(spacy.load("es_core_news_md"), c.chapter)
+    ref_paragraphs = chapters.reference_chapter(number).paragraphs
+    c.sentences = text.analyse(spacy.load(SPACY_MODEL), c.chapter)
     c.by_id = {s.sid: s for s in c.sentences}
     c.order = {s.sid: k for k, s in enumerate(c.sentences)}
     c.words = sum(1 for s in c.sentences for t in s.tokens if t.text.isalpha())

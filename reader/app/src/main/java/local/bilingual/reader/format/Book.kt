@@ -2,7 +2,9 @@ package local.bilingual.reader.format
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.io.InputStream
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 
 /**
@@ -10,13 +12,33 @@ import java.util.zip.ZipInputStream
  * 1.2 the translator's footnotes and the uncertain mark).
  */
 /**
- * The chapters of a package, parsed on first access (from any thread) and kept: opening a book costs its manifest and
- * the chapter being read. titles come from the manifest without parsing.
+ * The chapters of a package, read and parsed on first access (from any thread). Only the last few parsed chapters are
+ * kept, so a long book costs its manifest and the chapters around the one being read, not the whole text in memory.
+ * titles come from the manifest without parsing; weights (the uncompressed size of each chapter file) give the book
+ * progress without parsing either.
  */
-class LazyChapters(val titles: List<String>, private val texts: List<String>, private val parse: (String) -> Chapter) : AbstractList<Chapter>() {
-    private val parsed = arrayOfNulls<Chapter>(texts.size)
-    override val size get() = texts.size
-    override fun get(index: Int): Chapter = synchronized(parsed) { parsed[index] ?: parse(texts[index]).also { parsed[index] = it } }
+class LazyChapters(val titles: List<String>, val weights: List<Long>, private val read: (Int) -> String,
+                   private val parse: (String) -> Chapter, private val keep: Int = KEEP) : AbstractList<Chapter>() {
+    private val parsed = object : LinkedHashMap<Int, Chapter>(keep + 1, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, Chapter>?) = size > keep
+    }
+    override val size get() = titles.size
+    override fun get(index: Int): Chapter {
+        synchronized(parsed) { parsed[index]?.let { return it } }
+        val chapter = parse(read(index))
+        synchronized(parsed) { parsed[index] = chapter }
+        return chapter
+    }
+
+    /**
+     * Two lists are the same only when they are one object: comparing them element by element (as AbstractList does,
+     * and Book's equals with it) would read and parse every chapter of both books, on the main thread when Compose
+     * compares a book opened again with the one shown.
+     */
+    override fun equals(other: Any?) = this === other
+    override fun hashCode() = System.identityHashCode(this)
+
+    companion object { const val KEEP = 3 }
 }
 
 /** studied, support: language codes of the original and of the translations and notes (manifest). */
@@ -24,6 +46,17 @@ data class Book(val id: String, val title: String, val author: String, val maxOc
                 val studied: String = "es", val support: String = "ru") {
     /** Chapter titles from the manifest, without parsing the chapters. */
     val chapterTitles: List<String> get() = (chapters as? LazyChapters)?.titles ?: chapters.map { it.title }
+    /** Relative length of each chapter, for the book progress (the size of its file; 1 each when unknown). */
+    val chapterWeights: List<Long> get() = (chapters as? LazyChapters)?.weights ?: chapters.map { 1L }
+
+    /** Share of the book read up to [page] of [pages] in chapter [chapterIndex], from 0 to 1. */
+    fun progress(chapterIndex: Int, page: Int, pages: Int): Float {
+        val w = chapterWeights
+        val total = w.sum().takeIf { it > 0 } ?: return 0f
+        val i = chapterIndex.coerceIn(0, w.lastIndex)
+        val inChapter = if (pages > 0) (page + 1).coerceAtMost(pages).toFloat() / pages else 0f
+        return (w.take(i).sum() + w[i] * inChapter) / total
+    }
 }
 
 /** entries: dictionary entries of the chapter's words by "lemma|POS" (schema 1.4, books built from a dictionary). */
@@ -72,6 +105,7 @@ data class Sentence(
 )
 
 object BookParser {
+    /** A package read whole from a stream (tests, small books): every chapter file is kept as text. */
     fun parse(input: InputStream): Book {
         val files = HashMap<String, String>()
         ZipInputStream(input.buffered()).use { zip ->
@@ -80,11 +114,37 @@ object BookParser {
                 if (!entry.isDirectory) files[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
             }
         }
-        val manifest = JSONObject(files["manifest.json"] ?: error("manifest.json missing"))
+        return book(files["manifest.json"] ?: error("manifest.json missing"), { files[it]?.length?.toLong() }) { name ->
+            files[name] ?: error("missing $name")
+        }
+    }
+
+    /**
+     * A package on disk, read lazily: the manifest now, each chapter file when it is first shown. The file is reopened
+     * for every chapter, so nothing stays open between reads.
+     */
+    fun open(file: File): Book {
+        val (manifest, sizes) = ZipFile(file).use { zip ->
+            val m = zip.getEntry("manifest.json") ?: error("manifest.json missing")
+            zip.getInputStream(m).readBytes().toString(Charsets.UTF_8) to
+                zip.entries().asSequence().filter { !it.isDirectory }.associate { it.name to it.size }
+        }
+        return book(manifest, { sizes[it] }) { name ->
+            ZipFile(file).use { zip ->
+                val e = zip.getEntry(name) ?: error("missing $name")
+                zip.getInputStream(e).readBytes().toString(Charsets.UTF_8)
+            }
+        }
+    }
+
+    private fun book(manifestText: String, size: (String) -> Long?, read: (String) -> String): Book {
+        val manifest = JSONObject(manifestText)
         require(manifest.getString("schema").startsWith("1.")) { "unsupported schema ${manifest.getString("schema")}" }
         val listed = manifest.getJSONArray("chapters").objects()
-        val texts = listed.map { c -> files[c.getString("file")] ?: error("missing ${c.getString("file")}") }
-        val chapters = LazyChapters(listed.map { it.getString("title") }, texts, ::parseChapter)
+        val names = listed.map { it.getString("file") }
+        names.forEach { requireNotNull(size(it)) { "missing $it" } }
+        val chapters = LazyChapters(listed.map { it.getString("title") }, names.map { (size(it) ?: 1L).coerceAtLeast(1L) },
+            { i -> read(names[i]) }, ::parseChapter)
         return Book(manifest.getString("id"), manifest.getString("title"), manifest.getString("author"),
             manifest.getInt("maxOccurrence"), chapters, manifest.getString("studied"), manifest.getString("support"))
     }

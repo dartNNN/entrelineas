@@ -25,9 +25,15 @@ interface Props {
   onScreen: (paragraph: string, index: number, total: number) => void
   onTurn: () => void
   onLayout: (ms: number) => void
+  /** A turn past the last screen (1) or before the first (-1), once the chapter is laid out: the next or previous chapter. */
+  onEdge?: (direction: number) => void
+  /** The chapter is laid out: its number of screens for this layout (settings and page size), for the book's page count. */
+  onCount?: (layout: string, screens: number) => void
 }
 
 const LONG_PRESS_MS = 500
+/** A token with a letter or a digit is a word; one without (punctuation, dashes) opens no card. */
+const WORD = /[\p{L}\p{N}]/u
 const SWIPE = 48
 
 /**
@@ -62,7 +68,10 @@ export const Reader = memo(function Reader(props: Props) {
     measurer, size, paragraph, onLayout,
   })
   const count = useRef(0)
-  useLayoutEffect(() => { count.current = list.length })
+  const done = useRef(false)
+  useLayoutEffect(() => { count.current = list.length; done.current = complete })
+  const layout = `${JSON.stringify(settings)}:${size.width}x${size.height}`
+  useEffect(() => { if (complete && list.length) handlers.current.onCount?.(layout, list.length) }, [complete, list.length, layout])
 
   const screen = list[Math.min(index, list.length - 1)]
   useEffect(() => {
@@ -71,12 +80,16 @@ export const Reader = memo(function Reader(props: Props) {
     handlers.current.onScreen(screen.paragraph, index, complete ? list.length : 0)
   }, [screen, index, complete, list.length])
 
+  const at = useRef(0)
+  useLayoutEffect(() => { at.current = Math.min(index, Math.max(0, list.length - 1)) })
   const turn = useCallback((delta: number) => {
-    setIndex((i) => {
-      const next = Math.max(0, Math.min(count.current - 1, i + delta))
-      if (next !== i) handlers.current.onTurn()
-      return next
-    })
+    const i = at.current
+    const next = Math.max(0, Math.min(count.current - 1, i + delta))
+    if (next !== i) {
+      at.current = next
+      setIndex(next)
+      handlers.current.onTurn()
+    } else if (done.current && delta) handlers.current.onEdge?.(delta > 0 ? 1 : -1)  // past either end: the neighbouring chapter
   }, [setIndex])
 
   // The arrow keys turn pages only while nothing is open over the page.
@@ -103,7 +116,7 @@ export const Reader = memo(function Reader(props: Props) {
 
   const page = screen?.kind === 'page' ? pages[screen.page] : null
   return (
-    <div ref={viewport} className={`pages ${settings.justify ? 'justify' : ''}`} style={{ fontSize: `${settings.fontSize}px` }} {...gesture}
+    <div ref={viewport} className={`pages ${settings.justify ? 'justify' : ''}`} style={{ fontSize: `${settings.fontSize}px`, marginInline: `${settings.margin - 20}px` }} {...gesture}
       onWheel={wheel} onContextMenu={(e) => e.preventDefault()}>
       <div ref={measurer} className="measurer" aria-hidden="true" />
       {page && (
@@ -159,10 +172,10 @@ function useGestures(turn: (d: number) => void, handlers: React.RefObject<Props>
       if (Math.abs(dy) > SWIPE) return handlers.current.onReveal()
       if (Math.hypot(dx, dy) > 10) return
       const word = s.target.closest<HTMLElement>('[data-k]')
-      if (word) {
-        const [sentence, token] = (word.dataset.k ?? '').split(':')
-        handlers.current.onWord({ sentence, token: Number(token) })
-      } else handlers.current.onBlank()
+      const [sentence, token] = (word?.dataset.k ?? '').split(':')
+      // Punctuation is not a word: a tap on it is a tap off any word.
+      if (word && WORD.test(handlers.current.sentences.get(sentence)?.tokens[Number(token)] ?? '')) handlers.current.onWord({ sentence, token: Number(token) })
+      else handlers.current.onBlank()
     },
     onPointerCancel: () => { cancel(); start.current = null },
   }

@@ -6,6 +6,9 @@ import { anchorBlock, screens, type Screen } from '../../core/screens'
 import { DomMeasure } from '../measure'
 import { Paginator, type Page } from '../../core/paginate'
 
+/** The paragraph marker for opening a chapter on its last screen (turning back from the next chapter). */
+export const CHAPTER_END = '\uffff'
+
 /** Screens laid out at once on opening; the rest follows in the background in slices of about this many ms. */
 const FIRST_SCREENS = 3
 const SLICE_MS = 12
@@ -51,7 +54,8 @@ export function usePagination({ blocks, sentences, screenRepeat, layoutKey, meas
     let cancelled = false
     let timer = 0
     const started = performance.now()
-    const anchor = anchorBlock(blocks, paragraph.current)
+    const atEnd = paragraph.current === CHAPTER_END
+    const anchor = atEnd ? blocks.length : anchorBlock(blocks, paragraph.current)
     const forward = new Paginator(blocks, anchor, blocks.length, new DomMeasure(box, size.height, drawFragment))
     const first: Page[] = []
     for (let k = 0; k < FIRST_SCREENS; k++) { const p = forward.next(); if (p) first.push(p) }
@@ -88,7 +92,7 @@ export function usePagination({ blocks, sentences, screenRepeat, layoutKey, meas
       if (!done) { timer = window.setTimeout(back, 0); return }
       const shift = screens(before, blocks, screenRepeat, sentences).length
       setLayout((l) => ({ pages: [...before, ...l.pages], complete: true }))
-      setIndex((i) => i + shift)
+      setIndex((i) => (atEnd ? Math.max(0, shift - 1) : i + shift))
     }
     timer = window.setTimeout(step, 0)
     return () => { cancelled = true; clearTimeout(timer) }

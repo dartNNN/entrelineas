@@ -10,10 +10,11 @@ after the paragraph), the translator's and the author's footnotes, and for every
 its dictionary entry with the whole entry in the word card. There are no literal translations, grammar or context
 notes: those need a model.
 
-How a sense is chosen without a model, per occurrence: the numbered sense sharing most Russian word stems with the
-published translation of the sentence, otherwise the first sense. Measured on chapter 1 against the model's choice
-(2026-11-07): 60 percent agreement on polysemous words against 53 percent for always the first sense; where
-the translation decides, 68 percent. Matching the entry's examples and set phrases in the sentence did not help
+How a sense is chosen without a model, per occurrence: among the senses of the word's part of speech (spaCy's tag
+against the entry's labels, when it has them), the numbered sense sharing most Russian word stems with the published
+translation of the sentence, otherwise the first sense. Measured on chapter 1 against the model's choice: 60 percent
+agreement on polysemous words against 53 percent for always the first sense (2026-11-07), 63 percent with the part of
+speech (2026-11-13); where the translation decides, 70 percent. Matching the entry's examples and set phrases in the sentence did not help
 (42 percent where it fired, no gain overall) and is left out. Glosses are marked "from": "dictionary" so readers can
 say they may not fit the context.
 
@@ -29,15 +30,16 @@ from pathlib import Path
 
 import spacy
 
+import config
 import dictionary
 import published
 import text
-from config import ROOT, SOURCE
+from config import BOOK, BUILD, ROOT, SOURCE, SPACY_MODEL
 
 MAX_OCCURRENCE = 20
-DICTIONARIES = ["lingvo/UniversalEsRu", "lingvo/ModernUsageEsRu", "lingvo/LatinAmericanEsRu"]
+DICTIONARIES = ["lingvo/" + name for name in config.DICTIONARIES]  # for the book's language, config.py
 GLOSS_WORDS = 6
-OUT = ROOT / "build" / "offline"
+OUT = ROOT / BUILD / "offline"
 
 
 def log(*a):
@@ -49,11 +51,31 @@ def stems(t):
     return {w[:5] for w in re.findall(r"[а-яё]{4,}", t.lower())}
 
 
-def choose(senses, reference):
-    """(sense, how) for one occurrence: 'translation' or 'first'; (None, None) when the entry has no senses."""
+# The labels of each part of speech (spaCy's universal tags) in Lingvo entries: Spanish ones ("m", "vt", "adj") and the
+# Russian ones of English entries ("сущ.", "гл.").
+POS_LABELS = {
+    "NOUN": {"m", "f", "n", "com", "сущ"}, "PROPN": {"m", "f", "n", "com", "сущ"},
+    "VERB": {"v", "vt", "vi", "vr", "гл"}, "AUX": {"v", "vt", "vi", "vr", "гл"},
+    "ADJ": {"adj", "прил"}, "ADV": {"adv", "нареч"}, "PRON": {"pron", "мест"}, "ADP": {"prep", "предл"},
+    "CCONJ": {"conj", "союз"}, "SCONJ": {"conj", "союз"}, "INTJ": {"interj", "межд"}, "NUM": {"num", "числ"},
+}
+
+
+def of_pos(senses, pos):
+    """The senses labelled with part of speech [pos] (spaCy), or all of them when none is (or the entry has no labels)."""
+    labels = POS_LABELS.get(pos)
+    if not labels:
+        return senses
+    words = lambda g: set(re.findall(r"[a-zа-яё]+", re.sub(r"\[[^\]]*\]", "", (g or "").lower())))  # without the transcription
+    return [s for s in senses if words(s.get("gram")) & labels] or senses
+
+
+def choose(senses, reference, pos=None):
+    """(sense, how) for one occurrence: 'translation' or 'first'; (None, None) when the entry has no senses. Only the
+    senses of the word's part of speech take part when the entry labels them (a verb "trailed" is not "след")."""
     if not senses:
         return None, None
-    numbered = [s for s in senses if s["id"][0].isdigit()] or senses
+    numbered = of_pos([s for s in senses if s["id"][0].isdigit()] or senses, pos)
     ref = stems(reference or "")
     if ref:
         best = max([(len(stems(s["text"]) & ref), -i, s) for i, s in enumerate(numbered)], key=lambda x: (x[0], x[1]))
@@ -74,7 +96,7 @@ def gloss(sense):
 
 
 def ensure_alignment(number):
-    path = ROOT / "build" / f"ch{number:02d}" / "alignment.json"
+    path = ROOT / BUILD / f"ch{number:02d}" / "alignment.json"
     if not path.exists():
         log(f"chapter {number}: aligning with the published translation (LaBSE, a few minutes on the CPU)")
         subprocess.run([sys.executable, str(Path(__file__).parent / "align.py"), str(number)], check=True)
@@ -83,10 +105,10 @@ def ensure_alignment(number):
 
 def main():
     numbers = [int(a) for a in sys.argv[1:] if a.isdigit()] or [1]
-    nlp = spacy.load("es_core_news_md")
+    nlp = spacy.load(SPACY_MODEL)
     books = dictionary.Dictionaries([ROOT / "build" / "dict" / name for name in DICTIONARIES])
     if not books:
-        raise SystemExit("no dictionaries in build/dict (see DICTIONARIES in builder/build_offline.py)")
+        raise SystemExit(f"no dictionaries in build/dict: {DICTIONARIES} (see DICTIONARIES_FOR in builder/config.py)")
     book = text.read_chapters(SOURCE)
     chapters = {}
     for n in numbers:
@@ -116,7 +138,7 @@ def main():
             n = int(o["sid"][1:3])
             _, _, references, ref_of, _ = chapters[n]
             ref = ref_of.get(o["sid"])
-            sense, how = choose(senses, references[ref]["text"] if ref is not None else None)
+            sense, how = choose(senses, references[ref]["text"] if ref is not None else None, key.split("|")[1])
             choice[o["oid"]] = (key, sense, how)
             stats["with_entry"] += 1
             stats[how] += 1
@@ -144,7 +166,7 @@ def main():
                 used.add(key)
                 lemma = key.split("|")[0]
                 lex.append({"token": t.i, "lemma": lemma, "key": numbered[oid][0], "ordinal": numbered[oid][1],
-                            "gloss": gloss(sense), "gram": sense.get("gram"), "form": text.form_note(t, lemma), "from": "dictionary"})
+                            "gloss": gloss(sense), "gram": sense.get("gram"), "form": text.form_note(t, lemma, BOOK["studied"]), "from": "dictionary"})
             rows.append({"sid": s.sid, "text": s.text, "tokens": [t.text for t in s.tokens], "ws": [t.ws for t in s.tokens],
                          "paragraph": s.paragraph, "ref": ref_of.get(s.sid), "notes": s.notes,
                          "annotations": {"s": [], "g": [], "c": [], "v": [], "e": []}, "lexical": lex})

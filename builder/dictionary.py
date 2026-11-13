@@ -29,6 +29,9 @@ def load_stardict(base):
     return entries
 
 
+POS_LABEL = re.compile(r"\s*<abr>(сущ|гл|прил|нареч|мест|предл|союз|межд|числ|частица|артикль)\.?</abr>")
+
+
 def _plain(fragment):
     text = re.sub(r"<nu\s*/>'<nu\s*/>", "", fragment)  # stress marks
     text = re.sub(r"<[^>]+>", "", text)
@@ -38,13 +41,36 @@ def _plain(fragment):
 def parse_entry(entry):
     """{"senses": [{"id", "gram", "text", "examples": [(es, ru)]}], "idioms": [(es, ru)], "refs": [phrase headword]}."""
     senses, idioms, refs, part, gram, in_idioms = [], [], [], None, None, False
+    transcription, synonyms, domain = "", False, None
     for line in entry.splitlines():
         if "<k>" in line:
+            continue
+        # English entries put every line, the part labels "<b>2.</b> <abr>гл.</abr>" too, inside <blockquote>s.
+        source, line = line, re.sub(r"^(\s*<blockquote>)+", "", line)
+        depth = source.count("<blockquote>") - line.count("<blockquote>")
+        if source != line:
+            line = re.sub(r"<abr>\s*</abr>", "", line)  # "<b>1.<abr> </abr></b>": an empty tag inside a part label
+        # "Syn:" / "Ant:" and the line after it name other words, not phrase entries of this one.
+        if re.search(r"<b>(Syn|Ant):</b>", line):
+            synonyms = "<kref>" not in line
+            continue
+        if synonyms:
+            synonyms = False
+            if "<kref>" in line and "<dtrn>" not in line:
+                continue
+        if "<tr>" in line and "<dtrn>" not in line:  # English entries: transcription and sound files, before the senses
+            transcription = " ".join(f"[{_plain(t)}]" for t in re.findall(r"<tr>(.*?)</tr>", line))
+            continue
+        if transcription and POS_LABEL.match(line) and "<dtrn>" not in line:
+            gram = f"{transcription} {_plain(line)}"  # "гл.; прош. вр. sought": a label, though it holds a kref
             continue
         if line.strip() == "••":  # the entry's idioms follow; they belong to no sense
             in_idioms = True
             continue
-        if "<kref>" in line and "<dtrn>" not in line:
+        # In English entries a part label may hold a reference ("<b>1.</b> гл.; прош. вр. <kref>ran</kref>"): it is a
+        # label, read below. (Spanish entries, without <blockquote>s, keep their references there.)
+        label = source != line and re.match(r"\s*<b>\d+\.</b>", line)
+        if "<kref>" in line and "<dtrn>" not in line and not label:
             refs += [_plain(r) for r in re.findall(r"<kref>(.*?)</kref>", line)]
             continue
         if "<ex>" in line:
@@ -56,23 +82,41 @@ def parse_entry(entry):
         if m:
             part, rest = m.group(1), m.group(2)
             gram = _plain(rest) or None
+            if gram and transcription:
+                gram = f"{transcription} {gram}"
             if "<dtrn>" not in rest:
                 continue
             line = rest
         if "<dtrn>" not in line:
             if "<abr>" in line and not senses:
-                gram = _plain(line) or gram  # part-of-speech label on its own line
+                gram = (f"{transcription} " if transcription else "") + _plain(line) if _plain(line) else gram  # part-of-speech label on its own line
             continue
         body = re.search(r"<dtrn>(.*)</dtrn>", line)
         text = _plain(body.group(1) if body else line)
         if not text:
             continue
-        n = re.match(r"\s*(\d+)\)", line)
+        # English "1) <abr><dtrn>фин.</dtrn></abr>": a field label of the lettered senses under it, not a sense.
+        if source != line and re.search(r"<abr>\s*<dtrn>.*</dtrn>\s*</abr>", line):
+            domain = (depth, text)
+            continue
+        if domain and depth > domain[0]:
+            text = f"{domain[1]} {text}"
+        elif domain:
+            domain = None
+        n = re.match(r"\s*(\d+)\)", source)  # English "1) а) б)" nest letters under numbers: counted in order instead
         number = n.group(1) if n else str(sum(1 for s in senses if s["part"] == part) + 1)
-        senses.append({"id": f"{part}.{number}" if part else number, "part": part, "gram": gram, "text": text,
+        # English one-sense entries label the sense on its own line: "<abr>сущ.</abr>; горн. <dtrn>обогащение</dtrn>".
+        inline = _plain(line.split("<dtrn>")[0]) if source != line and "<abr>" in line.split("<dtrn>")[0] else ""
+        inline = re.sub(r"^(\d+|[а-я])\)\s*", "", inline)  # without the sense number "5)" or letter "а)"
+        sense_gram = gram or ((f"{transcription} " if transcription else "") + inline if inline else None)
+        if inline and gram:  # "5) <abr>бот.</abr> <dtrn>стелющийся побег</dtrn>": the field label goes with the sense
+            text = f"{inline} {text}"
+        senses.append({"id": f"{part}.{number}" if part else number, "part": part, "gram": sense_gram, "text": text,
                        "examples": []})
     for s in senses:
         del s["part"]
+        if transcription and s["gram"]:  # English labels: "сущ. ; = indorsement" -> "сущ.; = indorsement"
+            s["gram"] = re.sub(r"\s+([;,])", r"\1", s["gram"])
     return {"senses": senses, "idioms": idioms, "refs": refs}
 
 

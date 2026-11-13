@@ -15,6 +15,8 @@ data class Settings(
     val showNotes: Boolean = true,
     val repeat: Repeat = Repeat.PARAGRAPH,
     val fontSize: Float = 18f,
+    /** Left and right margin of the page, dp. */
+    val margin: Int = 20,
     val referenceInCard: Boolean = true,
     val referenceInText: Boolean = false,
     val showFootnotes: Boolean = true,
@@ -42,9 +44,11 @@ data class ShellSettings(
     val statusOnTop: Boolean = true,
     val clock: Boolean = true,
     val battery: Boolean = true,
-    val page: Boolean = true,
+    /** Progress items of the counter under the page and of the status line: pages and percent, of the chapter and the book. */
+    val page: Boolean = false,
     val chapterProgress: Boolean = false,
-    val bookProgress: Boolean = false,
+    val bookPages: Boolean = true,
+    val bookProgress: Boolean = true,
     val chapterTitle: Boolean = false,
     /** Seconds the top bar stays after the last touch. */
     val autoHideSeconds: Int = 3,

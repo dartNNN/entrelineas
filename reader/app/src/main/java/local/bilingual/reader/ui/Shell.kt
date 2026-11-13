@@ -6,6 +6,8 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
+import local.bilingual.reader.data.LibraryBook
 import local.bilingual.reader.format.*
 import local.bilingual.reader.reading.*
 
@@ -107,31 +110,117 @@ fun ReaderTopBar(title: String, onMenu: () -> Unit, onSettings: () -> Unit) {
     )
 }
 
-/** Navigation drawer: the book, its chapters (the current one selected), opening another book. */
+/**
+ * Navigation drawer as one lazy list: the book being read, opening a book, the other books of the library (where
+ * they were left, a long press removes one), then the chapters. A long chapter list is folded (header with the current
+ * chapter) so the books stay at hand; unfolded, it starts scrolled to the current chapter.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun DrawerContent(book: Book?, chapterIndex: Int, onChapter: (Int) -> Unit, onOpen: () -> Unit) {
-    Column(Modifier.padding(vertical = 12.dp).verticalScroll(rememberScrollState())) {
-        if (book != null) {
-            Text(book.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 28.dp))
-            Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp))
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            book.chapterTitles.forEachIndexed { idx, title ->
-                NavigationDrawerItem(label = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    selected = idx == chapterIndex, onClick = { onChapter(idx) },
-                    modifier = Modifier.padding(horizontal = 12.dp).testTag("chapter$idx"))
+fun DrawerContent(book: Book?, chapterIndex: Int, library: List<LibraryBook>, onChapter: (Int) -> Unit, onOpen: () -> Unit,
+                  onBook: (String) -> Unit, onRemoveBook: (String) -> Unit) {
+    val titles = book?.chapterTitles ?: emptyList()
+    var unfolded by remember(book?.id) { mutableStateOf(titles.size <= FOLD_CHAPTERS) }
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    val others = library.filter { it.id != book?.id }
+    val firstChapterItem = 2 + (if (book != null) 1 else 0) + others.size + (if (others.isNotEmpty()) 1 else 0)
+    androidx.compose.runtime.LaunchedEffect(unfolded, book?.id) {
+        if (unfolded && titles.size > FOLD_CHAPTERS) list.scrollToItem((firstChapterItem + chapterIndex - 2).coerceAtLeast(0))
+    }
+    androidx.compose.foundation.lazy.LazyColumn(state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
+        if (book != null) item {
+            Column {
+                Text(book.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 28.dp))
+                Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp))
             }
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
         }
-        NavigationDrawerItem(label = { Text("Открыть книгу") }, selected = false, onClick = onOpen,
-            modifier = Modifier.padding(horizontal = 12.dp).testTag("openBook"))
+        item {
+            NavigationDrawerItem(label = { Text("Открыть книгу…") }, selected = false, onClick = onOpen,
+                modifier = Modifier.padding(horizontal = 12.dp).testTag("openBook"))
+        }
+        if (others.isNotEmpty()) {
+            item { DrawerHeader("Другие книги") }
+            others.forEach { b ->
+                item(key = "book:${b.id}") {
+                    var confirm by remember { mutableStateOf(false) }
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+                        .combinedClickable(onLongClick = { confirm = true }) { onBook(b.id) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp).testTag("book:${b.id}")) {
+                        Text(b.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(listOf(b.author, "${(100 * b.progress).toInt()}%").filter { it.isNotBlank() }.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (confirm) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Убрать из списка?", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            androidx.compose.material3.TextButton({ confirm = false; onRemoveBook(b.id) }) { Text("Убрать") }
+                            androidx.compose.material3.TextButton({ confirm = false }) { Text("Нет") }
+                        }
+                    }
+                }
+            }
+        }
+        if (book != null) {
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item {
+                Row(Modifier.fillMaxWidth().clickable(enabled = titles.size > FOLD_CHAPTERS) { unfolded = !unfolded }
+                    .padding(start = 28.dp, end = 16.dp, top = 4.dp, bottom = 4.dp).testTag("chapters"),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Главы (${titles.size})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        if (!unfolded) Text(titles.getOrNull(chapterIndex) ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (titles.size > FOLD_CHAPTERS) Icon(if (unfolded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        if (unfolded) "Свернуть" else "Развернуть")
+                }
+            }
+            if (unfolded) titles.forEachIndexed { idx, title ->
+                item(key = "chapter:$idx") {
+                    NavigationDrawerItem(label = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        selected = idx == chapterIndex, onClick = { onChapter(idx) },
+                        modifier = Modifier.padding(horizontal = 12.dp).testTag("chapter$idx"))
+                }
+            }
+        }
     }
 }
 
-/** Progress shown by the status line and the bottom counter. */
-data class Progress(val page: Int, val pages: Int?, val chapterIndex: Int, val chapters: Int, val chapterTitle: String) {
+/** Chapter lists longer than this start folded in the drawer. */
+private const val FOLD_CHAPTERS = 12
+
+@Composable
+private fun DrawerHeader(title: String) {
+    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp))
+}
+
+/**
+ * Progress shown by the status line and the bottom counter. bookShare: the share of the book read (0..1), chapters
+ * weighted by their length (Book.progress); null until the chapter's pages are counted.
+ */
+data class Progress(val page: Int, val pages: Int?, val chapterIndex: Int, val chapters: Int, val chapterTitle: String,
+                    val bookShare: Float? = null, val bookPage: Int? = null, val bookPages: Int? = null, val estimated: Boolean = false) {
     val chapterPercent get() = pages?.let { 100 * (page + 1) / it }
-    val bookPercent get() = pages?.let { (100 * (chapterIndex + (page + 1).toFloat() / it) / chapters).toInt() }
+    val bookPercent get() = bookShare?.let { (100 * it).toInt() }
+    /**
+     * The progress items switched on in [s]: "глава 12 / 40 (30%)" and the book's "123 / ~860 (14%)" (no label: it is
+     * the main one), each with its pages, its percent or both ("~" while some chapters of the book are estimated).
+     */
+    fun items(s: ShellSettings): List<String> = listOfNotNull(
+        item("глава", if (s.page) "${page + 1} / ${pages ?: "…"}" else null, if (s.chapterProgress) chapterPercent else null),
+        item(null, if (s.bookPages && bookPage != null && bookPages != null) "$bookPage / ${if (estimated) "~" else ""}$bookPages" else null,
+            if (s.bookProgress) bookPercent else null),
+    )
+
+    private fun item(name: String?, count: String?, percent: Int?): String? {
+        val text = when {
+            count != null && percent != null -> "$count ($percent%)"
+            count != null -> count
+            percent != null -> "$percent%"
+            else -> return null
+        }
+        return if (name != null) "$name $text" else text
+    }
 }
 
 /** The full-screen status line: only the items switched on, in one thin row. */
@@ -147,9 +236,7 @@ fun StatusLine(s: ShellSettings, progress: Progress, color: Color, modifier: Mod
     val battery = batteryState(s.battery)
     val items = buildList {
         if (s.chapterTitle) add(progress.chapterTitle)
-        if (s.page) add("${progress.page + 1} / ${progress.pages ?: "…"}")
-        if (s.chapterProgress) progress.chapterPercent?.let { add("глава $it%") }
-        if (s.bookProgress) progress.bookPercent?.let { add("книга $it%") }
+        addAll(progress.items(s))
         if (s.battery) battery?.let { (level, charging) -> add((if (charging) "⚡" else "") + "$level%") }
         if (s.clock) add(android.text.format.DateFormat.getTimeFormat(context).format(now))
     }
@@ -221,14 +308,20 @@ fun SchemePicker(current: SchemeId, systemDark: Boolean, onPick: (SchemeId) -> U
 
 /**
  * Bottom sheets live in their own dialog window, which gets the system scrim under the navigation buttons (a white
- * band under a dark sheet). Called inside a sheet, this drops the scrim and matches the bar icons to the scheme.
+ * band under a dark sheet). Called inside a sheet, this drops the scrim and matches the bar icons to the scheme. A
+ * dialog window shows the system bars on its own, so in full screen ([hideBars]) it hides them as the page does.
  */
 @Composable
-fun SheetWindow(dark: Boolean) {
+fun SheetWindow(dark: Boolean, hideBars: Boolean = false) {
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.SideEffect {
         val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window ?: return@SideEffect
         window.isNavigationBarContrastEnforced = false
-        androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !dark
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
+        controller.isAppearanceLightNavigationBars = !dark
+        if (hideBars) {
+            controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
     }
 }

@@ -48,7 +48,8 @@ describe('reader screens', () => {
     tapOn(screen.getAllByText('mundo')[0])
     tapOn(gloss)
     tapOn(container.querySelector('.notes')!)
-    expect(taps).toEqual([{ sentence: 'c01p001s1', token: 1 }, { sentence: 'c01p001s1', token: 1 }, 'blank'])
+    tapOn(container.querySelector('[data-k="c01p001s1:2"]')!)  // the full stop: punctuation opens no card
+    expect(taps).toEqual([{ sentence: 'c01p001s1', token: 1 }, { sentence: 'c01p001s1', token: 1 }, 'blank', 'blank'])
   })
 
   it('shows the word card with its entry, segment, the published translation and the familiar toggle', () => {
@@ -57,7 +58,7 @@ describe('reader screens', () => {
       onToggleKnown={(k) => toggled.push(k)} onClose={() => {}} />)
     expect(screen.getByText('Привет, мир.')).toBeTruthy()
     expect(screen.getByText('Словарь: mundo')).toBeTruthy()
-    expect(screen.getByText('1. мир, свет (m)').className).toContain('chosen')
+    expect(screen.getByText('1. мир, свет').className).toContain('chosen')
     expect(screen.queryByText(/без модели/)).toBeNull()
     expect(screen.getByText('Сноска автора: Saludo.')).toBeTruthy()
     fireEvent.click(screen.getByText('Знаю это значение'))
@@ -76,7 +77,7 @@ describe('reader screens', () => {
     const sections = [...screen.getByTestId('word-card').querySelectorAll('section')]
     expect(sections.at(-1)?.dataset.testid).toBe('dictionary-entry')
     expect(screen.getByText('2. общество').className).toContain('chosen')
-    expect(screen.getByText('1. мир, свет (m)').className).not.toContain('chosen')
+    expect(screen.getByText('1. мир, свет').className).not.toContain('chosen')
   })
 
   it('changes unit and layer in the selection panel and runs actions shown at once or under «Ещё»', () => {
@@ -119,13 +120,13 @@ describe('reader screens', () => {
   })
 
   it('shows only the status items switched on', () => {
-    render(<StatusLine s={{ ...SHELL_DEFAULTS, clock: false, battery: false, chapterProgress: true, chapterTitle: true }}
+    const s = { ...SHELL_DEFAULTS, clock: false, battery: false, page: true, chapterProgress: true, bookPages: false, bookProgress: false }
+    render(<StatusLine s={{ ...s, chapterTitle: true }}
       progress={{ page: 1, pages: 4, chapterIndex: 0, chapters: 2, chapterTitle: 'Uno' }} onTap={() => {}} />)
-    expect(screen.getByTestId('status-line').textContent).toBe('Uno2 / 4   глава 50%')
+    expect(screen.getByTestId('status-line').textContent).toBe('Unoглава 2 / 4 (50%)')
     cleanup()
-    render(<StatusLine s={{ ...SHELL_DEFAULTS, clock: false, battery: false, chapterProgress: true }}
-      progress={{ page: 0, pages: 0, chapterIndex: 0, chapters: 2, chapterTitle: 'Uno' }} onTap={() => {}} />)
-    expect(screen.getByTestId('status-line').textContent).toBe('1 / …')
+    render(<StatusLine s={s} progress={{ page: 0, pages: 0, chapterIndex: 0, chapters: 2, chapterTitle: 'Uno' }} onTap={() => {}} />)
+    expect(screen.getByTestId('status-line').textContent).toBe('глава 1 / …')
   })
 })
 

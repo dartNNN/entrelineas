@@ -104,11 +104,19 @@ class Paginator(
                 if (current.isNotEmpty()) return Page(current, current.first().paragraphId)
                 fit = 0
             }
-            var cut = layout.getLineEnd(fit, visibleEnd = false).coerceAtLeast(1)
-            // A re-measured prefix can be taller than the line bottom it was cut at; step back until it fits.
-            while (fit > 0 && measurer.measure(text.subSequence(0, cut), style, constraints = constraints).size.height > available) {
-                fit -= 1
-                cut = layout.getLineEnd(fit, visibleEnd = false).coerceAtLeast(1)
+            // The piece ends where the line does, without the line break: a trailing "\n" would add an empty line.
+            fun cutAfter(line: Int): Int {
+                var end = layout.getLineEnd(line, visibleEnd = false)
+                while (end > 1 && text[end - 1] == '\n') end--
+                return end.coerceAtLeast(1)
+            }
+            var cut = cutAfter(fit)
+            // A re-measured prefix can be taller than the line bottom it was cut at; step back until it fits, or leave
+            // the block to the next page when not even its first line does.
+            while (measurer.measure(text.subSequence(0, cut), style, constraints = constraints).size.height > available) {
+                if (fit > 0) { fit -= 1; cut = cutAfter(fit) }
+                else if (current.isNotEmpty()) return Page(current, current.first().paragraphId)
+                else break
             }
             current += r.slice(0, cut, continues = true)
             val plain = r.plain

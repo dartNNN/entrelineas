@@ -11,6 +11,8 @@ import local.bilingual.reader.ui.*
 
 
 const val EXTRA_BOOK_PATH = "bookPath"
+/** Test and adb hook: add a book file to the library and open it, keeping the library and settings. */
+const val EXTRA_ADD_BOOK = "addBook"
 
 class MainActivity : ComponentActivity() {
     private val model: ReaderViewModel by viewModels()
@@ -23,6 +25,7 @@ class MainActivity : ComponentActivity() {
         }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) intent.getStringExtra(EXTRA_ADD_BOOK)?.let { model.open(File(it)) }
         setContent { ReaderApp(this, model) }
     }
 }

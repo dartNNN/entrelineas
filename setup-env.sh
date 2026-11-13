@@ -12,5 +12,5 @@ else
 fi
 # The builder's modules on the path of tests and experiments (pyproject.toml), without changing sys.path.
 .venv/bin/pip install -q -e . --no-deps
-.venv/bin/python -c "import spacy; spacy.load('es_core_news_md'); print('builder ok')"
+.venv/bin/python -c "import spacy; spacy.load('es_core_news_md'); spacy.load('en_core_web_md'); print('builder ok')"
 [[ "${1:-}" == "--no-align" ]] || .venv/bin/python -c "import torch, sentence_transformers, razdel; print('align ok, torch', torch.__version__)"

@@ -1,7 +1,10 @@
-"""FB2 import and linguistic preparation."""
+"""Book import (FB2, EPUB) and linguistic preparation."""
+import posixpath
 import re
 import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass, field
+from html.parser import HTMLParser
 
 NS = {"f": "http://www.gribuser.ru/xml/fictionbook/2.0"}
 
@@ -118,21 +121,97 @@ def read_notes(root):
     return notes
 
 
-def read_chapters(path):
+def _fb2_chapters(path):
+    """(heading, title, paragraphs, footnotes) per chapter section of an FB2 file."""
     root = ET.parse(path).getroot()
     notes = read_notes(root)
-    chapters = []
-    for idx, section in enumerate(_chapter_sections(root.find("f:body", NS)), start=1):
+    for section in _chapter_sections(root.find("f:body", NS)):
         title = " ".join("".join(p.itertext()).strip() for p in section.findall("f:title/f:p", NS))
-        chapter = Chapter(idx, title, [])
+        paragraphs, footnotes = [], []
         for line, ids in _lines(section):
             text, offsets = _strip_marks(line)
             if not text:
                 continue
-            chapter.paragraphs.append(text)
-            chapter.footnotes += [{"id": i, "text": notes.get(i, ""), "paragraph": len(chapter.paragraphs), "offset": o}
-                                  for i, o in zip(ids, offsets)]
-        chapters.append(chapter)
+            paragraphs.append(text)
+            footnotes += [{"id": i, "text": notes.get(i, ""), "paragraph": len(paragraphs), "offset": o}
+                          for i, o in zip(ids, offsets)]
+        yield title, title, paragraphs, footnotes
+
+
+class _Xhtml(HTMLParser):
+    """The body's epub:type and its text blocks (headings, paragraphs, list items) of one EPUB document."""
+    BLOCKS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "li"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.kind, self.blocks, self._open = "", [], None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "body":
+            self.kind = dict(attrs).get("epub:type", "")
+        elif tag in self.BLOCKS and self._open is None:
+            self._open = [tag, ""]
+        elif tag == "br" and self._open:
+            self._open[1] += " "
+
+    def handle_endtag(self, tag):
+        if self._open and tag == self._open[0]:
+            text = " ".join(self._open[1].split())
+            if text:
+                self.blocks.append((self._open[0], text))
+            self._open = None
+
+    def handle_data(self, data):
+        if self._open:
+            self._open[1] += data
+
+
+def _epub_chapters(path):
+    """(heading, title, paragraphs, footnotes) per chapter of an EPUB, in spine order.
+
+    Chapters are the documents marked epub:type="chapter"; a book without such marks has one chapter per document
+    with a heading. A title page (epub:type="titlepage") names the book that follows, and its chapters are titled
+    "<book> · <heading>", so an omnibus of several books keeps them apart.
+    """
+    with zipfile.ZipFile(path) as z:
+        container = ET.fromstring(z.read("META-INF/container.xml"))
+        opf_path = next(e.get("full-path") for e in container.iter() if e.tag.endswith("rootfile"))
+        opf = ET.fromstring(z.read(opf_path))
+        manifest = {e.get("id"): e.get("href") for e in opf.iter() if e.tag.endswith("item")}
+        spine = [e.get("idref") for e in opf.iter() if e.tag.endswith("itemref")]
+        docs = []
+        for idref in spine:
+            parser = _Xhtml()
+            parser.feed(z.read(posixpath.join(posixpath.dirname(opf_path), manifest[idref])).decode("utf-8"))
+            docs.append(parser)
+    marked = any("chapter" in d.kind.split() for d in docs)
+    book = None
+    for d in docs:
+        if "titlepage" in d.kind.split() and d.blocks:
+            book = d.blocks[0][1]
+        is_chapter = "chapter" in d.kind.split() if marked else any(tag[0] == "h" for tag, _ in d.blocks)
+        if not is_chapter:
+            continue
+        heading = next((text for tag, text in d.blocks if tag[0] == "h"), "")
+        paragraphs = [text for tag, text in d.blocks if tag[0] != "h"]
+        yield heading, f"{book} · {heading}" if book and heading else heading, paragraphs, []
+
+
+def read_chapters(path, keep=None):
+    """Chapters of an FB2 or EPUB file, numbered from 1.
+
+    keep: a regular expression a chapter's own heading must match, to leave out prefaces, glossaries and the like
+    (both files of a book must give the same chapters in the same order); by default the book's "chapters" setting.
+    """
+    if keep is None:
+        import config
+        keep = config.BOOK.get("chapters")
+    read = _epub_chapters if str(path).lower().endswith(".epub") else _fb2_chapters
+    chapters = []
+    for heading, title, paragraphs, footnotes in read(path):
+        if keep and not re.search(keep, heading):
+            continue
+        chapters.append(Chapter(len(chapters) + 1, title, paragraphs, footnotes=footnotes))
     return chapters
 
 
@@ -191,13 +270,37 @@ PERSON = {"1": "1 л.", "2": "2 л.", "3": "3 л."}
 NUMBER = {"Sing": "ед. ч.", "Plur": "мн. ч."}
 
 
-def form_note(token, lemma=None):
-    """Template description of an inflected form; empty when the form equals the lemma."""
+DEGREE = {"Cmp": "сравн. ст.", "Sup": "превосх. ст."}
+
+
+def _english_form(token, lemma):
+    """English: tense and participles of verbs, plural of nouns, degrees of comparison."""
+    m, parts = token.morph, []
+    if token.pos == "VERB":
+        form = m.get("VerbForm")
+        if form == "Fin":
+            parts.append("прош. вр." if m.get("Tense") == "Past" else "наст. вр., 3 л. ед. ч." if m.get("Person") == "3" else "")
+        elif form == "Part":
+            parts.append("причастие прош. вр." if m.get("Tense") == "Past" else "-ing форма")
+        elif form == "Ger":
+            parts.append("-ing форма")
+    elif token.pos == "NOUN" and m.get("Number") == "Plur":
+        parts.append("мн. ч.")
+    elif token.pos in ("ADJ", "ADV") and m.get("Degree") in DEGREE:
+        parts.append(DEGREE[m.get("Degree")])
+    note = ", ".join(p for p in parts if p)
+    return f"{note} от {lemma}" if note else ""
+
+
+def form_note(token, lemma=None, lang="es"):
+    """Template description of an inflected form, in Russian; empty when the form equals the lemma."""
     m = token.morph
     surface = token.text.lower()
     lemma = lemma or token.lemma
     if surface == lemma:
         return ""
+    if lang == "en":
+        return _english_form(token, lemma)
     parts = []
     if token.pos == "VERB":
         form = m.get("VerbForm")

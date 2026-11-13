@@ -18,8 +18,8 @@ android {
         // Built for one device: OPPO Reno5 (CPH2159) on ColorOS 13 = Android 13, API 33.
         minSdk = 33
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.6"
+        versionCode = 7
+        versionName = "0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { bookPercent, chapterPercent, type Progress } from '../progress'
+import { progressItems, type Progress } from '../progress'
 import type { ShellSettings } from '../../core/settings'
 
 interface BatteryManager extends EventTarget { level: number; charging: boolean }
@@ -42,10 +42,7 @@ export function StatusLine({ s, progress, onTap }: { s: ShellSettings; progress:
   const now = useMinute()
   const battery = useBattery(s.battery)
   const items: string[] = []
-  if (s.page) items.push(`${progress.page + 1} / ${progress.pages || '…'}`)
-  // Percentages only once the chapter is laid out.
-  if (s.chapterProgress && progress.pages) items.push(`глава ${chapterPercent(progress)}%`)
-  if (s.bookProgress && progress.pages) items.push(`книга ${bookPercent(progress)}%`)
+  items.push(...progressItems(progress, s))
   if (battery) items.push(`${battery.charging ? '⚡' : ''}${battery.level}%`)
   if (s.clock) items.push(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
   if (!items.length && !s.chapterTitle) return null

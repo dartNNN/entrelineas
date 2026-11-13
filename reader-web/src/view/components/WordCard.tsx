@@ -1,6 +1,9 @@
+import { Fragment } from 'react'
 import type { Chapter } from '../../core/book'
+import { senseHeadings } from '../../core/entry'
 import type { Settings } from '../../core/settings'
 import type { WordTap } from '../../core/selection'
+import { languages } from '../fragment'
 import { Sheet } from './Sheet'
 
 const LABELS = { grammar: 'Грамматика', context: 'Контекст', variants: 'Варианты', expression: 'Выражение' } as const
@@ -24,10 +27,16 @@ export function WordCard({ tap, chapter, settings, known, onToggleKnown, onClose
   // The entry stands right under the gloss when the sense was chosen from the dictionary alone (it is the gloss's
   // source), after everything else when a model chose it.
   const entryFirst = lex?.from === 'dictionary'
+  const headings = entry ? senseHeadings(entry.senses.map((x) => x.gram ?? null)) : []
   const dictionary = entry && (
     <section data-testid="dictionary-entry">
       <div className="label">Словарь: {entry.headword}</div>
-      {entry.senses.map((x) => <div key={x.id} className={`sense ${x.id === sense ? 'chosen' : ''}`}>{x.id}. {x.text}{x.gram ? ` (${x.gram})` : ''}</div>)}
+      {entry.senses.map((x, k) => (
+        <Fragment key={x.id}>
+          {headings[k] && <div className="sense-heading">{headings[k]}</div>}
+          <div className={`sense ${x.id === sense ? 'chosen' : ''}`}>{x.id}. {x.text}</div>
+        </Fragment>
+      ))}
     </section>
   )
   const notes = s.notes.filter((n) => i >= n.first && i <= n.last)
@@ -36,11 +45,11 @@ export function WordCard({ tap, chapter, settings, known, onToggleKnown, onClose
   return (
     <Sheet label="Карточка слова" onClose={onClose}>
       <div className="word-card" data-testid="word-card">
-        <h2 lang="es">{s.tokens[i]}</h2>
+        <h2 lang={languages.studied}>{s.tokens[i]}</h2>
         {lex && (
           <>
             <div className="label">{[lex.lemma, lex.gram].filter(Boolean).join(' · ')}</div>
-            <div className="big" lang="ru">{lex.gloss}</div>
+            <div className="big" lang={languages.support}>{lex.gloss}</div>
             {lex.form && <div>{lex.form}</div>}
             <div className="note">появление №{lex.n}</div>
           </>
@@ -48,20 +57,20 @@ export function WordCard({ tap, chapter, settings, known, onToggleKnown, onClose
         {entryFirst && dictionary}
         {segment && (
           <section>
-            <div className="label" lang="es">{text(segment.first, segment.last)}</div>
-            <div lang="ru">{segment.literal}</div>
-            {segment.literary && <div lang="ru">= {segment.literary}</div>}
+            <div className="label" lang={languages.studied}>{text(segment.first, segment.last)}</div>
+            <div lang={languages.support}>{segment.literal}</div>
+            {segment.literary && <div lang={languages.support}>= {segment.literary}</div>}
           </section>
         )}
         {ref && (
-          <section lang="ru">
+          <section lang={languages.support}>
             <div className="label">Перевод переводчика{ref.uncertain ? ' · сопоставление сомнительное' : ref.loose ? ' · вольный' : ''}</div>
             <div>{ref.text ?? 'Переводчик пропустил это предложение'}</div>
             {settings.showFootnotes && ref.notes.map((n, k) => <div key={k} className="small">Сноска: {n}</div>)}
           </section>
         )}
         {settings.showAuthorNotes && s.authorNotes.length > 0 && <section>{s.authorNotes.map((n, k) => <div key={k} className="small">Сноска автора: {n}</div>)}</section>}
-        {notes.length > 0 && <section lang="ru">{notes.map((n, k) => <p key={k}>{LABELS[n.kind]}: {n.text}</p>)}</section>}
+        {notes.length > 0 && <section lang={languages.support}>{notes.map((n, k) => <p key={k}>{LABELS[n.kind]}: {n.text}</p>)}</section>}
         {!entryFirst && dictionary}
         {lex && <button className="outlined" onClick={() => onToggleKnown(lex.key)}>{known.has(lex.key) ? 'Снова показывать подсказку' : 'Знаю это значение'}</button>}
       </div>

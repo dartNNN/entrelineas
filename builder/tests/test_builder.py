@@ -1,5 +1,8 @@
 """Unit tests for deterministic builder logic (no network, no spaCy model needed)."""
 import json
+import re
+
+import pytest
 
 import align
 import chapter_build
@@ -379,3 +382,168 @@ def test_model_chapters_get_their_dictionary_entries_and_the_sense_chosen_in_the
     assert sorted(data["entries"]) == ["lista|NOUN", "rastro|NOUN"]
     assert data["entries"]["lista|NOUN"]["headword"] == "lista"  # the group that owns the corrected key keeps its entry
     assert data["entries"]["rastro|NOUN"]["senses"][1] == {"id": "3", "text": "след", "gram": "m"}
+
+
+# --- EPUB import, chapter selection, English ---------------------------------------------------------------------
+
+def _epub(path, docs):
+    """A minimal EPUB: docs is a list of (id, epub:type, body markup) in spine order."""
+    import zipfile
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("mimetype", "application/epub+zip")
+        z.writestr("META-INF/container.xml", '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                   '<rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        items = "".join(f'<item id="{i}" href="xhtml/{i}.xhtml" media-type="application/xhtml+xml"/>' for i, _, _ in docs)
+        spine = "".join(f'<itemref idref="{i}"/>' for i, _, _ in docs)
+        z.writestr("OPS/book.opf", f'<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf"><manifest>{items}</manifest>'
+                   f"<spine>{spine}</spine></package>")
+        for i, kind, body in docs:
+            z.writestr(f"OPS/xhtml/{i}.xhtml", '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
+                       f'<body epub:type="{kind}">{body}</body></html>')
+    return path
+
+
+def test_epub_chapters_in_spine_order_titled_by_their_book(tmp_path):
+    path = _epub(tmp_path / "b.epub", [
+        ("toc", "toc", "<h1>Contents</h1><p>I</p>"),
+        ("t1", "titlepage", "<p>Don Quijote</p><p>Cervantes</p>"),
+        ("c1", "chapter", "<h2>I</h2><p><span>EN UN LUGAR</span> de la Mancha, de cuyo nombre&#160;no quiero acordarme.</p><p>Rocinante.</p>"),
+        ("n1", "backmatter", "<h2>Note</h2><p>Not a chapter.</p>"),
+        ("c2", "chapter", "<h2>II</h2><p>Sancho<br/>Panza.</p>")])
+    chapters = text.read_chapters(path)
+    assert [(c.index, c.title) for c in chapters] == [(1, "Don Quijote · I"), (2, "Don Quijote · II")]
+    assert chapters[0].paragraphs == ["EN UN LUGAR de la Mancha, de cuyo nombre no quiero acordarme.", "Rocinante."]
+    assert chapters[1].paragraphs == ["Sancho Panza."]
+
+
+def test_chapters_setting_leaves_out_prefaces_and_glossaries(tmp_path):
+    from conftest import FB2_HEAD, FB2_TAIL
+    body = ("<section><title><p>Primera parte</p></title><section><title><p>Prólogo</p></title><p>P.</p></section>"
+            "<section><title><p>I</p></title><p>Uno.</p></section><section><title><p>II</p></title><p>Dos.</p></section></section>"
+            "<section><title><p>Glosario</p></title><p>G.</p></section>")
+    path = tmp_path / "b.fb2"
+    path.write_text(FB2_HEAD.format(lang="es") + body + FB2_TAIL, encoding="utf-8")
+    assert [c.title for c in text.read_chapters(path, keep="")] == ["Prólogo", "I", "II", "Glosario"]
+    assert [(c.index, c.title, c.paragraphs) for c in text.read_chapters(path, keep="^[IVXLC]+$")] == [(1, "I", ["Uno."]), (2, "II", ["Dos."])]
+
+
+def test_english_form_notes():
+    def form(t, lemma, pos, morph):
+        return text.form_note(tok(0, t, lemma, pos, morph), lang="en")
+    assert form("sought", "seek", "VERB", {"VerbForm": "Part", "Tense": "Past"}) == "причастие прош. вр. от seek"
+    assert form("rode", "ride", "VERB", {"VerbForm": "Fin", "Tense": "Past"}) == "прош. вр. от ride"
+    assert form("speaks", "speak", "VERB", {"VerbForm": "Fin", "Tense": "Pres", "Person": "3"}) == "наст. вр., 3 л. ед. ч. от speak"
+    assert form("walking", "walk", "VERB", {"VerbForm": "Part", "Tense": "Pres"}) == "-ing форма от walk"
+    assert form("men", "man", "NOUN", {"Number": "Plur"}) == "мн. ч. от man"
+    assert form("greater", "great", "ADJ", {"Degree": "Cmp"}) == "сравн. ст. от great"
+    assert form("power", "power", "NOUN", {"Number": "Sing"}) == ""
+
+
+def test_english_entry_keeps_transcription_and_label_without_sound_files():
+    entry = ("<k>seek</k>\n<tr>siːk</tr> <abr>брит.</abr> <rref>seek.wav</rref> / <abr>амер.</abr> <rref>1.wav</rref>\n"
+             "<abr>гл.</abr><c>;</c> <abr>прош. вр.</abr> <kref>sought</kref>\n<blockquote>1) <dtrn>искать</dtrn></blockquote>\n"
+             "<blockquote>2) <dtrn>добиваться</dtrn></blockquote>")
+    parsed = dictionary.parse_entry(entry)
+    assert [(s["id"], s["gram"], s["text"]) for s in parsed["senses"]] == [
+        ("1", "[siːk] гл.; прош. вр. sought", "искать"), ("2", "[siːk] гл.; прош. вр. sought", "добиваться")]
+    assert parsed["refs"] == [], "the past form in the label is not a phrase entry"
+
+
+def test_english_entry_parts_in_blockquotes_and_synonyms_left_out():
+    q = lambda s, depth=1: "<blockquote>" * depth + s + "</blockquote>" * depth
+    entry = "\n".join([
+        "<k>tilt</k>", "<tr>tɪlt</tr> <abr>брит.</abr> <rref>tilt.wav</rref>",
+        q("<b>1.</b> <abr>сущ.</abr>"), q("1)"), q("а) <dtrn>наклон</dtrn>", 2), q("<b>Syn:</b>", 3), q("<kref>slant</kref>", 3),
+        q("б) <dtrn>атака</dtrn>", 2), q("2) <dtrn>навес</dtrn>"), q("<b>Syn:</b>", 2), q("<kref>awning</kref>, <kref>canopy</kref>", 2),
+        q("•"), q("- <kref>at full tilt</kref>"),
+        q("<b>2.</b> <abr>гл.</abr><c>;</c> <abr>прош. вр.</abr> <kref>tilted</kref>"), q("1) <dtrn>наклонять</dtrn>"),
+        q("<b>Ant:</b> <kref>level</kref>", 2), q("2) <dtrn>атаковать</dtrn>"),
+    ])
+    parsed = dictionary.parse_entry(entry)
+    assert [(s["id"], s["gram"], s["text"]) for s in parsed["senses"]] == [
+        ("1.1", "[tɪlt] сущ.", "наклон"), ("1.2", "[tɪlt] сущ.", "атака"), ("1.3", "[tɪlt] сущ.", "навес"),
+        ("2.1", "[tɪlt] гл.; прош. вр. tilted", "наклонять"), ("2.2", "[tɪlt] гл.; прош. вр. tilted", "атаковать")]
+    assert parsed["refs"] == ["at full tilt"], "synonyms, antonyms and the past form are not phrase entries"
+
+
+def test_english_field_label_goes_with_the_senses_under_it():
+    q = lambda s, depth=1: "<blockquote>" * depth + s + "</blockquote>" * depth
+    entry = "\n".join(["<k>note</k>", "<tr>nəʊt</tr>", "<abr>сущ.</abr> <c>; = notice</c>",
+                       q("1) <abr><dtrn>фин.</dtrn></abr>"), q("а) <dtrn>вексель</dtrn>", 2), q("б) <dtrn>расписка</dtrn>", 2),
+                       q("2) <dtrn>заметка</dtrn>")])
+    assert [(s["gram"], s["text"]) for s in dictionary.parse_entry(entry)["senses"]] == [
+        ("[nəʊt] сущ.; = notice", "фин. вексель"), ("[nəʊt] сущ.; = notice", "фин. расписка"), ("[nəʊt] сущ.; = notice", "заметка")]
+
+
+def test_offline_choice_keeps_to_the_part_of_speech():
+    import build_offline
+    senses = [{"id": "1.1", "gram": "[treɪl] сущ.", "text": "след"}, {"id": "2.1", "gram": "[treɪl] гл.", "text": "тащить"},
+              {"id": "2.2", "gram": "[treɪl] гл.", "text": "волочиться"}]
+    assert build_offline.choose(senses, "Он тащил мешок", "VERB")[0]["id"] == "2.1"
+    assert build_offline.choose(senses, None, "VERB") == (senses[1], "first"), "the first sense of the verb, not of the noun"
+    assert build_offline.choose(senses, None, "NOUN")[0]["id"] == "1.1"
+    assert build_offline.choose(senses, None, "ADV")[0]["id"] == "1.1", "no sense of that part: all of them"
+    spanish = [{"id": "1", "gram": "adj", "text": "чистый"}, {"id": "2", "gram": "m", "text": "чистильщик"}]
+    assert build_offline.choose(spanish, None, "NOUN")[0]["id"] == "2"
+
+
+# --- matching the chapters of two editions ------------------------------------------------------------------------
+
+def _topic_embed(texts):
+    """Fake LaBSE: a text's vector is the one-hot of the TOPICn word it holds, so 'the same content' is the same topic."""
+    import numpy as np
+    rows = []
+    for t in texts:
+        v = np.zeros(32)
+        v[int(re.search(r"TOPIC(\d+)", t).group(1))] = 1.0
+        rows.append(v)
+    return np.array(rows)
+
+
+def _ch(index, topic_open, topic_close, n_words, title=None):
+    body = " ".join(["w"] * (n_words - 2))
+    return text.Chapter(index, title or str(index), [f"TOPIC{topic_open} {body}", f"TOPIC{topic_close}"])
+
+
+def test_chapters_match_one_to_one_split_merge_and_missing():
+    import chapters
+    # original: prologue(1) A(2) B(3) C(4) D(5); translation: A, B split in two, C+D merged, an afterword
+    source = [_ch(1, 1, 1, 300), _ch(2, 2, 2, 3000), _ch(3, 3, 4, 3000), _ch(4, 5, 5, 2000), _ch(5, 6, 6, 2000)]
+    reference = [_ch(1, 2, 2, 2800), _ch(2, 3, 9, 1500), _ch(3, 10, 4, 1400), _ch(4, 5, 6, 3700), _ch(5, 7, 7, 400)]
+    groups = chapters.match(source, reference, _topic_embed)
+    assert [(s, r) for s, r, _ in groups] == [([0], []), ([1], [0]), ([2], [1, 2]), ([3, 4], [3]), ([], [4])]
+    rows = chapters.pairs(groups)
+    assert [(p["source"], p["reference"], p["doubt"]) for p in rows] == [
+        (1, [], "нет в переводе"), (2, [1], ""), (3, [2, 3], "1:2"), (4, [4], "2:1"), (5, [4], "2:1")]
+
+
+def test_chapters_identity_when_the_editions_agree():
+    import chapters
+    source = [_ch(i, i, i, 1000 + 100 * i) for i in range(1, 6)]
+    reference = [_ch(i, i, i, 900 + 90 * i) for i in range(1, 6)]
+    rows = chapters.pairs(chapters.match(source, reference, _topic_embed))
+    assert [(p["source"], p["reference"], p["doubt"]) for p in rows] == [(i, [i], "") for i in range(1, 6)]
+
+
+def test_reference_chapter_joins_parts_and_follows_the_map(monkeypatch, tmp_path):
+    import chapters
+    from conftest import FB2_HEAD, FB2_TAIL
+    body = ('<section><title><p>1</p></title><p>Uno.</p></section>'
+            '<section><title><p>2</p></title><p>Dos<a xmlns:l="http://www.w3.org/1999/xlink" l:href="#n1" type="note">1</a>.</p></section>'
+            '</body><body name="notes"><section id="n1"><p>Nota.</p></section>')
+    ref = tmp_path / "ru.fb2"
+    ref.write_text(FB2_HEAD.format(lang="ru") + body + FB2_TAIL, encoding="utf-8")
+    monkeypatch.setattr(chapters, "REFERENCE", ref)
+    monkeypatch.setattr(chapters, "ROOT", tmp_path)
+    monkeypatch.setattr(chapters, "BOOK", {"reference_chapters": None})
+    assert chapters.reference_chapter(2).paragraphs == ["Dos."], "no map: chapter n goes with chapter n"
+    with pytest.raises(SystemExit, match="run builder/chapters.py"):
+        chapters.reference_chapter(3)
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "chapters.json").write_text(json.dumps({"pairs": [
+        {"source": 1, "reference": [1, 2]}, {"source": 2, "reference": []}]}))
+    joined = chapters.reference_chapter(1)
+    assert joined.paragraphs == ["Uno.", "Dos."] and [(f["id"], f["paragraph"]) for f in joined.footnotes] == [("n1", 2)]
+    assert chapters.reference_chapter(2).paragraphs == []
+    monkeypatch.setattr(chapters, "BOOK", {"reference_chapters": {"2": [2]}})
+    assert chapters.reference_chapter(2).paragraphs == ["Dos."], "the book's settings win over the file"

@@ -79,7 +79,7 @@ def audit(c, lexicon=None):
 def main():
     number = int(sys.argv[1])
     c = chapter_build.prepare(number)
-    built = any((chapter_build.ROOT / "build").glob("ch*/chapter.json"))
+    built = any((chapter_build.ROOT / chapter_build.BUILD).glob("ch*/chapter.json"))
     result = audit(c, lexicon_build.prepare() if built else None)
     (c.out / "prompt_audit.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
     for name, r in result.items():

@@ -81,6 +81,13 @@ class WordCardTest : ReaderTestBase() {
     }
 
     @Test
+    fun s5_9_tapOnPunctuationOpensNoCard() {
+        launchWithBook()
+        piece(0, 3).tapWord(".")  // the plain pass "Hola mundo.": its first full stop is the token
+        compose.onAllNodesWithTag("wordCard").assertCountEquals(0)
+    }
+
+    @Test
     fun s5_5_wordWithoutEntryShowsContextButNoKnownButton() {
         launchWithBook()
         piece(0, 1).tapWord("Hola")

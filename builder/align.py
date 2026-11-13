@@ -15,8 +15,9 @@ import time
 
 import numpy as np
 
+import chapters
 import text
-from config import REFERENCE, ROOT, SOURCE
+from config import BUILD, ROOT, SOURCE, SPACY_MODEL
 
 MODEL = "sentence-transformers/LaBSE"
 MAX_SPAN = 3
@@ -83,7 +84,7 @@ def russian_sentences(chapter):
 
 def main():
     number = int(sys.argv[1])
-    out = ROOT / "build" / f"ch{number:02d}" / "alignment.json"
+    out = ROOT / BUILD / f"ch{number:02d}" / "alignment.json"
     if out.exists() and "--force" not in sys.argv:
         print(f"{out} exists; --force to rebuild", file=sys.stderr)
         return
@@ -92,13 +93,16 @@ def main():
 
     chapter = text.read_chapters(SOURCE)[number - 1]
     # The title (paragraph 0) is aligned with nothing: the reference's titles are not part of its sentences.
-    es = [s for s in text.analyse(spacy.load("es_core_news_md"), chapter) if s.paragraph > 0]
-    reference = text.read_chapters(REFERENCE)[number - 1]
+    es = [s for s in text.analyse(spacy.load(SPACY_MODEL), chapter) if s.paragraph > 0]
+    reference = chapters.reference_chapter(number)
     ru = russian_sentences(reference)
     model = SentenceTransformer(MODEL, device="cpu")
     started = time.time()
-    groups = align([s.text for s in es], [s["text"] for s in ru],
-                   lambda texts: model.encode(texts, batch_size=64, normalize_embeddings=True, convert_to_numpy=True))
+    if ru:
+        groups = align([s.text for s in es], [s["text"] for s in ru],
+                       lambda texts: model.encode(texts, batch_size=64, normalize_embeddings=True, convert_to_numpy=True))
+    else:  # the translation has no such chapter (builder/chapters.py): every sentence stands alone
+        groups = [([i], [], None) for i in range(len(es))]
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({
         "model": MODEL,
